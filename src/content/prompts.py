@@ -46,8 +46,8 @@ def build_generation_prompt(
     if trending_context:
         parts.append(
             f"\n{trending_context}\n\n"
-            "Use the above trending context for inspiration — reference specific events, "
-            "takes, or hashtags where it makes sense. Don't just summarize them; "
+            "Use the above trending context for inspiration — reference a specific event, "
+            "take, or hashtag where it makes sense. Don't just summarize it; "
             "give your own sharp take.\n"
             "The bullets are listed most-recent-first. Prefer picking a story from the "
             "most recent items, but if an older bullet is clearly a bigger or more "
