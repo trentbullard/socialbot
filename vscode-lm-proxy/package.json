@@ -1,0 +1,59 @@
+{
+  "name": "social-media-bot-lm-proxy",
+  "displayName": "Social Media Bot — LM Proxy",
+  "description": "Local HTTP proxy to the VS Code Language Model API for the social media bot",
+  "version": "0.1.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "lmProxy.start",
+        "title": "LM Proxy: Start Server"
+      },
+      {
+        "command": "lmProxy.stop",
+        "title": "LM Proxy: Stop Server"
+      },
+      {
+        "command": "lmProxy.status",
+        "title": "LM Proxy: Show Status"
+      }
+    ],
+    "configuration": {
+      "title": "LM Proxy",
+      "properties": {
+        "lmProxy.port": {
+          "type": "integer",
+          "default": 19280,
+          "description": "Port for the local LM proxy HTTP server"
+        },
+        "lmProxy.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start the proxy server when VS Code opens"
+        },
+        "lmProxy.modelFamily": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "Model family to request from the Language Model API"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.95.0",
+    "typescript": "^5.5.0"
+  }
+}

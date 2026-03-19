@@ -1,0 +1,97 @@
+# Social Media Bot — Example Configuration
+# Copy to config.yaml and fill in your values.
+# Secrets (API keys) must be set as environment variables, not here.
+
+persona:
+  # Bot persona name. Leave blank to auto-generate.
+  name: ""
+  # Platform handle/username
+  handle: ""
+
+posting:
+  # Minimum minutes between posts
+  min_interval_minutes: 90
+  # Maximum minutes between posts
+  max_interval_minutes: 300
+  # Target posts per day (scheduler adjusts intervals to hit this range)
+  posts_per_day_min: 3
+  posts_per_day_max: 10
+  # Additional random jitter in seconds added before each post (human-like delay)
+  jitter_seconds_min: 5
+  jitter_seconds_max: 45
+
+content:
+  tone:
+    - sarcastic
+    - dry
+    - blunt
+    - irreverent
+
+  topics:
+    - AI developments and hype
+    - twitch and gaming drama
+    - cultural commentary on media
+    - politics and policy
+    - mens experiences and dating
+    - extremes in social debates
+    - crypto culture and memes
+    - viral social media moments
+    - influencer and creator drama
+    - pop culture and meme trends
+
+  style:
+    max_length: 280
+    capitalization: minimal    # minimal | normal | none
+    punctuation: minimal       # minimal | normal
+    emoji_probability: 0.4     # 0.0–1.0
+    gif_probability: 0.15      # 0.0–1.0
+
+  # Worldview lean — fed into prompt assembly, never posted directly
+  lean: "edgy conservative grounded in reality and statistics, implied through sarcasm"
+
+  # Hard rules the generator must follow
+  guidelines:
+    - never reference the person behind the account
+    - never be explicitly political or partisan
+    - never use shock-bait or rage-farming tactics
+    - lean should be inferred through humor and framing only
+    - avoid slurs, hate speech, or punching down
+    - keep posts brief — one idea per post
+    - no threads, no quote-tweet chains
+
+# Which backend to use for content generation: "codex" or "vscode-lm"
+# - codex:     calls the Codex CLI (requires OpenAI API key)
+# - vscode-lm: calls the local VS Code LM proxy extension (uses Copilot subscription)
+generator_backend: vscode-lm
+
+codex:
+  # Path to Codex CLI binary. Leave blank to auto-detect on PATH.
+  cli_path: ""
+  # Model to request
+  model: ""
+  # Max seconds to wait for content generation
+  timeout_seconds: 30
+
+vscode_lm:
+  # Host/port for the VS Code LM proxy extension HTTP server
+  host: "127.0.0.1"
+  port: 19280
+  # Max seconds to wait for content generation
+  timeout_seconds: 30
+
+platform: twitter
+
+platform_config:
+  twitter:
+    # All credentials come from environment variables:
+    #   TWITTER_API_KEY
+    #   TWITTER_API_SECRET
+    #   TWITTER_ACCESS_TOKEN
+    #   TWITTER_ACCESS_SECRET
+    api_key_env: TWITTER_API_KEY
+    api_secret_env: TWITTER_API_SECRET
+    access_token_env: TWITTER_ACCESS_TOKEN
+    access_secret_env: TWITTER_ACCESS_SECRET
+
+logging:
+  level: INFO    # DEBUG | INFO | WARNING | ERROR
