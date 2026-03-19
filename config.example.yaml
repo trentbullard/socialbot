@@ -90,6 +90,17 @@ vscode_lm:
   # Max seconds to wait for content generation
   timeout_seconds: 60
 
+# Brave Search API — provides real news/web results for trending context (RAG)
+brave_search:
+  # Environment variable holding your Brave Search API key (get one at brave.com/search/api)
+  api_key_env: BRAVE_API_KEY
+  # Timeout for Brave Search API requests
+  timeout_seconds: 15
+  # Freshness filter: pd=past day, pw=past week, pm=past month
+  freshness: pd
+  # Number of results to fetch per topic
+  count: 10
+
 # Giphy integration — search for GIFs when the LM includes a [gif: ...] tag
 giphy:
   # Environment variable holding your Giphy API key (get one at developers.giphy.com)

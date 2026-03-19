@@ -76,6 +76,21 @@ class VsCodeLmConfig(BaseModel):
     timeout_seconds: int = 300
 
 
+class BraveSearchConfig(BaseModel):
+    api_key_env: str = "BRAVE_API_KEY"
+    timeout_seconds: int = 15
+    freshness: str = "pd"  # pd=past day, pw=past week, pm=past month
+    count: int = 10
+
+    @field_validator("freshness")
+    @classmethod
+    def valid_freshness(cls, v: str) -> str:
+        allowed = {"pd", "pw", "pm", "py", ""}
+        if v not in allowed:
+            raise ValueError(f"brave_search.freshness must be one of {allowed}")
+        return v
+
+
 class GiphyConfig(BaseModel):
     api_key_env: str = "GIPHY_API_KEY"
     rating: str = "pg-13"
@@ -118,6 +133,7 @@ class BotConfig(BaseModel):
     generator_backend: str = "codex"
     codex: CodexConfig = CodexConfig()
     vscode_lm: VsCodeLmConfig = VsCodeLmConfig()
+    brave_search: BraveSearchConfig = BraveSearchConfig()
     giphy: GiphyConfig = GiphyConfig()
     platform: str = "twitter"
     platform_config: dict[str, dict[str, str]] = {}
