@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -14,6 +14,16 @@ class PostResult:
     post_id: str = ""
     url: str = ""
     error: str = ""
+
+
+@dataclass
+class TrendingPost:
+    """A single trending/recent post returned by platform search."""
+
+    text: str
+    author: str = ""
+    engagement: int = 0
+    hashtags: list[str] = field(default_factory=list)
 
 
 class PlatformAdapter(ABC):
@@ -33,3 +43,7 @@ class PlatformAdapter(ABC):
     async def validate_credentials(self) -> bool:
         """Check that stored credentials are valid. Returns True if OK."""
         ...
+
+    async def search_recent(self, query: str, max_results: int = 10) -> list[TrendingPost]:
+        """Search for recent popular posts matching a query. Optional — returns [] by default."""
+        return []

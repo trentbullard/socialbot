@@ -26,6 +26,7 @@ from src.content.prompts import (
 def _build_prompts(
     config: BotConfig,
     recent_posts: list[str] | None = None,
+    trending_context: str = "",
 ) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for a generation request."""
     system_prompt = build_system_prompt(config)
@@ -34,6 +35,7 @@ def _build_prompts(
         recent_posts=recent_posts,
         include_emoji=should_include_emoji(config),
         include_gif=should_include_gif(config),
+        trending_context=trending_context,
     )
     logger.debug("System prompt ({} chars)", len(system_prompt))
     logger.debug("User prompt ({} chars):\n{}", len(user_prompt), user_prompt)
@@ -75,11 +77,12 @@ def _resolve_codex_path(config: BotConfig) -> str:
 def _generate_via_codex(
     config: BotConfig,
     recent_posts: list[str] | None = None,
+    trending_context: str = "",
 ) -> str | None:
     """Generate a post using the Codex CLI subprocess."""
     codex_path = _resolve_codex_path(config)
     logger.info("Generating post via Codex CLI at: {}", codex_path)
-    system_prompt, user_prompt = _build_prompts(config, recent_posts)
+    system_prompt, user_prompt = _build_prompts(config, recent_posts, trending_context)
     full_prompt = f"{system_prompt}\n\n{user_prompt}"
 
     for attempt in range(2):
@@ -130,13 +133,14 @@ def _generate_via_codex(
 def _generate_via_vscode_lm(
     config: BotConfig,
     recent_posts: list[str] | None = None,
+    trending_context: str = "",
 ) -> str | None:
     """Generate a post via the VS Code LM proxy HTTP server."""
     host = config.vscode_lm.host
     port = config.vscode_lm.port
     url = f"http://{host}:{port}/generate"
 
-    system_prompt, user_prompt = _build_prompts(config, recent_posts)
+    system_prompt, user_prompt = _build_prompts(config, recent_posts, trending_context)
 
     payload = json.dumps({
         "prompt": user_prompt,
@@ -195,6 +199,7 @@ def _generate_via_vscode_lm(
 def generate_post(
     config: BotConfig,
     recent_posts: list[str] | None = None,
+    trending_context: str = "",
 ) -> str | None:
     """Generate a single post using the configured backend.
 
@@ -204,6 +209,6 @@ def generate_post(
     logger.debug("Using generator backend: {}", backend)
 
     if backend == "vscode-lm":
-        return _generate_via_vscode_lm(config, recent_posts)
+        return _generate_via_vscode_lm(config, recent_posts, trending_context)
     else:
-        return _generate_via_codex(config, recent_posts)
+        return _generate_via_codex(config, recent_posts, trending_context)

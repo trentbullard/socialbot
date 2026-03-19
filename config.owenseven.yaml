@@ -4,9 +4,9 @@
 
 persona:
   # Bot persona name. Leave blank to auto-generate.
-  name: ""
+  name: "Owen Seven"
   # Platform handle/username
-  handle: ""
+  handle: "@owenseven"
 
 posting:
   # Minimum minutes between posts
@@ -59,17 +59,6 @@ content:
     - keep posts brief — one idea per post
     - no threads, no quote-tweet chains
 
-  # Trending context: search for what's hot before generating
-  trending:
-    enabled: false
-    # "lm" = ask the LM what's trending (works in dry-run, no auth needed)
-    # "platform" = search the platform API (requires auth)
-    # "both" = try both and combine context
-    source: lm
-    max_results: 10
-    # Max seconds to wait for trending research (LM research can be slow)
-    timeout_seconds: 60
-
 # Which backend to use for content generation: "codex" or "vscode-lm"
 # - codex:     calls the Codex CLI (requires OpenAI API key)
 # - vscode-lm: calls the local VS Code LM proxy extension (uses Copilot subscription)
@@ -88,7 +77,7 @@ vscode_lm:
   host: "127.0.0.1"
   port: 19280
   # Max seconds to wait for content generation
-  timeout_seconds: 60
+  timeout_seconds: 30
 
 platform: twitter
 

@@ -12,6 +12,8 @@ from loguru import logger
 
 from src.config import BotConfig, load_config
 from src.content.generator import generate_post
+from src.content.prompts import pick_topic
+from src.content.trends import fetch_trending_context
 from src.platforms.base import PlatformAdapter
 from src.platforms.twitter import TwitterAdapter
 from src.scheduler import run_scheduler
@@ -51,7 +53,14 @@ def _build_adapter(config: BotConfig) -> PlatformAdapter:
 async def _post_cycle(config: BotConfig, adapter: PlatformAdapter) -> None:
     """Single generate-and-post cycle (live mode)."""
     logger.info("Starting post cycle")
-    content = generate_post(config, recent_posts=_recent_posts)
+
+    # Fetch trending context if enabled
+    topic = pick_topic(config)
+    trending_context = await fetch_trending_context(config, topic, adapter=adapter)
+    if trending_context:
+        logger.info("Injecting trending context ({} chars) for topic: {}", len(trending_context), topic)
+
+    content = generate_post(config, recent_posts=_recent_posts, trending_context=trending_context)
     if content is None:
         logger.warning("Skipping post slot — generation failed")
         return
@@ -102,7 +111,14 @@ def _dry_run(config: BotConfig) -> None:
     logger.info("-" * 60)
     logger.info("Generating sample post...")
 
-    content = generate_post(config, recent_posts=_recent_posts)
+    # Fetch trending context if enabled (LM-based works without auth)
+    topic = pick_topic(config)
+    trending_context = asyncio.run(fetch_trending_context(config, topic))
+    if trending_context:
+        logger.info("Trending context ({} chars) for topic: {}", len(trending_context), topic)
+        logger.debug("Trending context:\n{}", trending_context)
+
+    content = generate_post(config, recent_posts=_recent_posts, trending_context=trending_context)
     now = datetime.now(timezone.utc)
 
     if content is None:

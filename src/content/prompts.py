@@ -36,11 +36,20 @@ def build_generation_prompt(
     recent_posts: list[str] | None = None,
     include_emoji: bool = False,
     include_gif: bool = False,
+    trending_context: str = "",
 ) -> str:
     """Build the user-level prompt for a single post generation."""
     topic = random.choice(config.content.topics) if config.content.topics else "current events"
 
     parts = [f"Write a single social media post about: {topic}"]
+
+    if trending_context:
+        parts.append(
+            f"\n{trending_context}\n\n"
+            "Use the above trending context for inspiration — reference specific events, "
+            "takes, or hashtags where it makes sense. Don't just summarize them; "
+            "give your own sharp take."
+        )
 
     if include_emoji:
         parts.append("Include one or two relevant humorous emojis.")
@@ -67,3 +76,8 @@ def should_include_emoji(config: BotConfig) -> bool:
 
 def should_include_gif(config: BotConfig) -> bool:
     return random.random() < config.content.style.gif_probability
+
+
+def pick_topic(config: BotConfig) -> str:
+    """Pick a random topic from the configured pool."""
+    return random.choice(config.content.topics) if config.content.topics else "current events"

@@ -34,7 +34,8 @@ function getModelFamily(): string {
 }
 
 async function handleGenerate(
-  body: { prompt: string; systemPrompt?: string },
+  body: { prompt: string; systemPrompt?: string; timeout?: number },
+  req: http.IncomingMessage,
   res: http.ServerResponse
 ): Promise<void> {
   const family = getModelFamily();
@@ -55,8 +56,20 @@ async function handleGenerate(
   }
   messages.push(vscode.LanguageModelChatMessage.User(body.prompt));
 
+  const cts = new vscode.CancellationTokenSource();
+
+  // Cancel the LM request if the client disconnects
+  req.on("close", () => cts.cancel());
+
+  // Cancel the LM request after the specified timeout (default: no timeout)
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutSec = typeof body.timeout === "number" && body.timeout > 0 ? body.timeout : 0;
+  if (timeoutSec > 0) {
+    timer = setTimeout(() => cts.cancel(), timeoutSec * 1000);
+  }
+
   try {
-    const response = await model.sendRequest(messages, {}, new vscode.CancellationTokenSource().token);
+    const response = await model.sendRequest(messages, {}, cts.token);
 
     let content = "";
     for await (const chunk of response.text) {
@@ -69,8 +82,17 @@ async function handleGenerate(
       family: model.family,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    sendJson(res, 500, { error: message });
+    if (cts.token.isCancellationRequested) {
+      sendJson(res, 504, { error: "LM request cancelled (timeout or client disconnect)" });
+    } else {
+      const message = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error: message });
+    }
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    cts.dispose();
   }
 }
 
@@ -120,7 +142,7 @@ function startServer(context: vscode.ExtensionContext): void {
             });
             return;
           }
-          handleGenerate(body, res).catch((err: unknown) => {
+          handleGenerate(body, req, res).catch((err: unknown) => {
             const message = err instanceof Error ? err.message : String(err);
             sendJson(res, 500, { error: message });
           });

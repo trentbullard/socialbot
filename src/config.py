@@ -40,24 +40,40 @@ class StyleConfig(BaseModel):
     gif_probability: float = Field(0.15, ge=0.0, le=1.0)
 
 
+class TrendingConfig(BaseModel):
+    enabled: bool = False
+    source: str = "lm"
+    max_results: int = 10
+    timeout_seconds: int = 300
+
+    @field_validator("source")
+    @classmethod
+    def valid_source(cls, v: str) -> str:
+        allowed = {"platform", "lm", "both"}
+        if v not in allowed:
+            raise ValueError(f"trending.source must be one of {allowed}")
+        return v
+
+
 class ContentConfig(BaseModel):
     tone: list[str] = ["sarcastic", "dry", "blunt", "irreverent"]
     topics: list[str] = []
     style: StyleConfig = StyleConfig()
     lean: str = ""
     guidelines: list[str] = []
+    trending: TrendingConfig = TrendingConfig()
 
 
 class CodexConfig(BaseModel):
     cli_path: str = ""
     model: str = ""
-    timeout_seconds: int = 30
+    timeout_seconds: int = 300
 
 
 class VsCodeLmConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 19280
-    timeout_seconds: int = 30
+    timeout_seconds: int = 300
 
 
 class PlatformCredentialConfig(BaseModel):

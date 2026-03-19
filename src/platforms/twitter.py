@@ -6,7 +6,7 @@ import tweepy
 import tweepy.asynchronous
 from loguru import logger
 
-from src.platforms.base import PlatformAdapter, PostResult
+from src.platforms.base import PlatformAdapter, PostResult, TrendingPost
 
 
 class TwitterAdapter(PlatformAdapter):
@@ -50,3 +50,49 @@ class TwitterAdapter(PlatformAdapter):
         except tweepy.TweepyException as exc:
             logger.error("Failed to post tweet: %s", exc)
             return PostResult(success=False, error=str(exc))
+
+    async def search_recent(self, query: str, max_results: int = 10) -> list[TrendingPost]:
+        """Search Twitter for recent popular tweets related to a query."""
+        if self._client is None:
+            logger.warning("Cannot search — not authenticated")
+            return []
+
+        try:
+            clamped = max(10, min(max_results, 100))
+            response = self._client.search_recent_tweets(
+                query=f"{query} -is:retweet lang:en",
+                max_results=clamped,
+                sort_order="relevancy",
+                tweet_fields=["public_metrics", "entities", "author_id"],
+            )
+
+            if not response.data:
+                logger.debug("No tweets found for query: {}", query)
+                return []
+
+            results: list[TrendingPost] = []
+            for tweet in response.data:
+                metrics = tweet.public_metrics or {}
+                engagement = (
+                    metrics.get("like_count", 0)
+                    + metrics.get("retweet_count", 0)
+                    + metrics.get("reply_count", 0)
+                )
+                hashtags = []
+                if tweet.entities and "hashtags" in tweet.entities:
+                    hashtags = [h["tag"] for h in tweet.entities["hashtags"]]
+
+                results.append(TrendingPost(
+                    text=tweet.text,
+                    author=tweet.author_id or "",
+                    engagement=engagement,
+                    hashtags=hashtags,
+                ))
+
+            results.sort(key=lambda p: p.engagement, reverse=True)
+            logger.info("Found {} trending tweets for '{}'", len(results), query)
+            return results
+
+        except tweepy.TweepyException as exc:
+            logger.warning("Twitter search failed: {}", exc)
+            return []
