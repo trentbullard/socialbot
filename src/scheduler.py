@@ -48,7 +48,7 @@ async def run_scheduler(
 
         interval = _next_interval(config)
         next_mins = interval / 60
-        logger.info("Next post in %.1f minutes", next_mins)
+        logger.info("Next post in {:.1f} minutes", next_mins)
 
         # Wait for the interval, but allow early exit on shutdown
         if shutdown_event:
@@ -65,7 +65,7 @@ async def run_scheduler(
         try:
             await post_callback()
             posts_made += 1
-            logger.info("Posts completed today: %d", posts_made)
+            logger.info("Posts completed today: {}", posts_made)
         except Exception:
             logger.exception("Error during post cycle")
 

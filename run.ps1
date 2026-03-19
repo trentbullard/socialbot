@@ -5,12 +5,15 @@
     Path to the YAML config file. Default: config.yaml
 .PARAMETER DryRun
     Generate content without posting.
+.PARAMETER PostNow
+    Authenticate and post once immediately, then exit.
 .PARAMETER MaxPosts
     Stop after N posts.
 #>
 param(
     [string]$Config = "config.yaml",
     [switch]$DryRun,
+    [switch]$PostNow,
     [int]$MaxPosts = 0
 )
 
@@ -37,6 +40,20 @@ try {
     # Activate venv
     & .\.venv\Scripts\Activate.ps1
 
+    # Load persisted User environment variables (VS Code may not inherit them)
+    foreach ($name in @(
+        "TWITTER_API_KEY", "TWITTER_API_SECRET",
+        "TWITTER_ACCESS_TOKEN", "TWITTER_ACCESS_SECRET",
+        "TWITTER_BEARER_TOKEN", "GIPHY_API_KEY"
+    )) {
+        if (-not [System.Environment]::GetEnvironmentVariable($name)) {
+            $val = [System.Environment]::GetEnvironmentVariable($name, "User")
+            if ($val) {
+                [System.Environment]::SetEnvironmentVariable($name, $val, "Process")
+            }
+        }
+    }
+
     Write-Host "Installing/updating dependencies..."
     pip install -q -r requirements.txt
 
@@ -45,6 +62,10 @@ try {
 
     if ($DryRun) {
         $cmd += "--dry-run"
+    }
+
+    if ($PostNow) {
+        $cmd += "--post-now"
     }
 
     if ($MaxPosts -gt 0) {

@@ -7,6 +7,7 @@ cd "$SCRIPT_DIR"
 CONFIG="config.yaml"
 DRY_RUN=""
 MAX_POSTS=""
+POST_NOW=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -16,6 +17,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dry-run)
             DRY_RUN="--dry-run"
+            shift
+            ;;
+        --post-now)
+            POST_NOW="--post-now"
             shift
             ;;
         --max-posts)
@@ -50,4 +55,4 @@ pip install -q -r requirements.txt
 
 echo "Starting bot..."
 # shellcheck disable=SC2086
-python -m src.main --config "$CONFIG" $DRY_RUN $MAX_POSTS
+python -m src.main --config "$CONFIG" $DRY_RUN $POST_NOW $MAX_POSTS

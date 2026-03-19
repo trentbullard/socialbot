@@ -170,6 +170,21 @@ def _dry_run(config: BotConfig) -> None:
     logger.info("Dry run complete.")
 
 
+async def _post_now(config: BotConfig) -> None:
+    """Authenticate and immediately post once, then exit."""
+    adapter = _build_adapter(config)
+
+    logger.info("Authenticating with platform: {}", config.platform)
+    await adapter.authenticate()
+    if not await adapter.validate_credentials():
+        logger.error("Credential validation failed — exiting")
+        sys.exit(1)
+    logger.info("Authenticated — posting immediately")
+
+    await _post_cycle(config, adapter)
+    logger.info("Immediate post complete.")
+
+
 async def _run(config: BotConfig, max_posts: int | None) -> None:
     """Live run: authenticate and start scheduler loop."""
     adapter = _build_adapter(config)
@@ -221,6 +236,11 @@ def main() -> None:
         default=None,
         help="Stop after N posts (useful for testing)",
     )
+    parser.add_argument(
+        "--post-now",
+        action="store_true",
+        help="Authenticate and post once immediately, then exit",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -230,6 +250,12 @@ def main() -> None:
 
     if args.dry_run:
         _dry_run(config)
+    elif args.post_now:
+        logger.info("Post-now mode — will post once and exit")
+        try:
+            asyncio.run(_post_now(config))
+        except KeyboardInterrupt:
+            logger.info("Interrupted — shutting down.")
     else:
         logger.info("Platform: {} | Max posts: {}", config.platform, args.max_posts or "unlimited")
         try:

@@ -42,7 +42,7 @@ class TwitterAdapter(PlatformAdapter):
             me = self._client.get_me()
             return me.data is not None
         except tweepy.TweepyException as exc:
-            logger.warning("Twitter credential validation failed: %s", exc)
+            logger.warning("Twitter credential validation failed: {}", exc)
             return False
 
     async def post(self, content: str, media_path: str | None = None) -> PostResult:
@@ -63,10 +63,10 @@ class TwitterAdapter(PlatformAdapter):
             )
             tweet_id = str(response.data["id"])
             url = f"https://x.com/i/status/{tweet_id}"
-            logger.info("Posted tweet %s", tweet_id)
+            logger.info("Posted tweet {}", tweet_id)
             return PostResult(success=True, post_id=tweet_id, url=url)
         except tweepy.TweepyException as exc:
-            logger.error("Failed to post tweet: %s", exc)
+            logger.error("Failed to post tweet: {}", exc)
             return PostResult(success=False, error=str(exc))
 
     async def search_recent(self, query: str, max_results: int = 10) -> list[TrendingPost]:
