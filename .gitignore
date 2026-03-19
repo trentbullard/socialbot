@@ -1,5 +1,10 @@
 # Bot runtime config (contains secrets references)
 config.yaml
+.cache/
+.codex/
+.config/
+.yarn/
+.yarnrc
 
 # Virtual environment
 .venv/
