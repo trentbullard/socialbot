@@ -90,6 +90,15 @@ vscode_lm:
   # Max seconds to wait for content generation
   timeout_seconds: 60
 
+# Giphy integration — search for GIFs when the LM includes a [gif: ...] tag
+giphy:
+  # Environment variable holding your Giphy API key (get one at developers.giphy.com)
+  api_key_env: GIPHY_API_KEY
+  # Content rating filter: g | pg | pg-13 | r
+  rating: pg-13
+  # Timeout for Giphy API requests
+  timeout_seconds: 10
+
 platform: twitter
 
 platform_config:

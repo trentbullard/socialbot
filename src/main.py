@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import random
 import sys
 from datetime import datetime, timezone
@@ -12,6 +13,7 @@ from loguru import logger
 
 from src.config import BotConfig, load_config
 from src.content.generator import generate_post
+from src.content.giphy import download_gif, extract_gif_tag, search_gif
 from src.content.prompts import pick_topic
 from src.content.trends import fetch_trending_context
 from src.platforms.base import PlatformAdapter
@@ -65,6 +67,14 @@ async def _post_cycle(config: BotConfig, adapter: PlatformAdapter) -> None:
         logger.warning("Skipping post slot — generation failed")
         return
 
+    # Extract GIF tag, search Giphy, download
+    content, gif_query = extract_gif_tag(content)
+    media_path: str | None = None
+    if gif_query:
+        gif_url = search_gif(gif_query, config)
+        if gif_url:
+            media_path = download_gif(gif_url, timeout=config.giphy.timeout_seconds)
+
     # Small human-like delay before posting
     jitter = random.uniform(
         config.posting.jitter_seconds_min,
@@ -73,12 +83,20 @@ async def _post_cycle(config: BotConfig, adapter: PlatformAdapter) -> None:
     logger.debug("Pre-post jitter: {:.1f}s", jitter)
     await asyncio.sleep(jitter)
 
-    result = await adapter.post(content)
-    if result.success:
-        logger.info("Posted successfully | id={} | url={}", result.post_id, result.url)
-    else:
-        logger.error("Post failed: {}", result.error)
-        return
+    try:
+        result = await adapter.post(content, media_path=media_path)
+        if result.success:
+            logger.info("Posted successfully | id={} | url={}", result.post_id, result.url)
+        else:
+            logger.error("Post failed: {}", result.error)
+            return
+    finally:
+        # Clean up temp GIF file
+        if media_path:
+            try:
+                os.remove(media_path)
+            except OSError:
+                pass
 
     _recent_posts.append(content)
     if len(_recent_posts) > MAX_RECENT:
@@ -125,12 +143,24 @@ def _dry_run(config: BotConfig) -> None:
         logger.error("Content generation failed — check Codex CLI configuration")
         return
 
+    # Extract and resolve GIF tag
+    content, gif_query = extract_gif_tag(content)
+    gif_info = ""
+    if gif_query:
+        gif_url = search_gif(gif_query, config)
+        if gif_url:
+            gif_info = f"  GIF     : query={gif_query!r} → {gif_url}"
+        else:
+            gif_info = f"  GIF     : query={gif_query!r} → no Giphy result (set {config.giphy.api_key_env}?)"
+
     logger.info("-" * 60)
     logger.info("SAMPLE POST")
     logger.info("  Timestamp : {} UTC", now.strftime("%Y-%m-%d %H:%M:%S"))
     logger.info("  Platform  : {}", config.platform)
     logger.info("  Persona   : {} ({})", config.persona.name or "<not set>", config.persona.handle or "<not set>")
     logger.info("  Length    : {} / {} chars", len(content), config.content.style.max_length)
+    if gif_info:
+        logger.info(gif_info)
     logger.info("  Content   :")
     logger.info("")
     logger.info("    {}", content)

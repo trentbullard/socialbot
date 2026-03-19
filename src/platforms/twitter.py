@@ -15,6 +15,7 @@ class TwitterAdapter(PlatformAdapter):
     def __init__(self, credentials: dict[str, str]) -> None:
         self._credentials = credentials
         self._client: tweepy.Client | None = None
+        self._api: tweepy.API | None = None  # v1.1 API for media upload
 
     async def authenticate(self) -> None:
         logger.debug("Authenticating Twitter client...")
@@ -24,7 +25,15 @@ class TwitterAdapter(PlatformAdapter):
             access_token=self._credentials["access_token_env"],
             access_token_secret=self._credentials["access_secret_env"],
         )
-        logger.info("Twitter client authenticated")
+        # v1.1 API is needed for media uploads
+        auth = tweepy.OAuth1UserHandler(
+            self._credentials["api_key_env"],
+            self._credentials["api_secret_env"],
+            self._credentials["access_token_env"],
+            self._credentials["access_secret_env"],
+        )
+        self._api = tweepy.API(auth)
+        logger.info("Twitter client authenticated (v2 + v1.1 media)")
 
     async def validate_credentials(self) -> bool:
         if self._client is None:
@@ -36,13 +45,22 @@ class TwitterAdapter(PlatformAdapter):
             logger.warning("Twitter credential validation failed: %s", exc)
             return False
 
-    async def post(self, content: str, media_url: str | None = None) -> PostResult:
+    async def post(self, content: str, media_path: str | None = None) -> PostResult:
         if self._client is None:
             return PostResult(success=False, error="Not authenticated")
 
         try:
-            # TODO: media upload support when media_url is provided
-            response = self._client.create_tweet(text=content)
+            media_ids = None
+            if media_path and self._api is not None:
+                logger.debug("Uploading media: {}", media_path)
+                media = self._api.media_upload(filename=media_path)
+                media_ids = [media.media_id]
+                logger.info("Uploaded media, id={}", media.media_id)
+
+            response = self._client.create_tweet(
+                text=content,
+                media_ids=media_ids,
+            )
             tweet_id = str(response.data["id"])
             url = f"https://x.com/i/status/{tweet_id}"
             logger.info("Posted tweet %s", tweet_id)

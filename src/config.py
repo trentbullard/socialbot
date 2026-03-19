@@ -76,6 +76,20 @@ class VsCodeLmConfig(BaseModel):
     timeout_seconds: int = 300
 
 
+class GiphyConfig(BaseModel):
+    api_key_env: str = "GIPHY_API_KEY"
+    rating: str = "pg-13"
+    timeout_seconds: int = 10
+
+    @field_validator("rating")
+    @classmethod
+    def valid_rating(cls, v: str) -> str:
+        allowed = {"g", "pg", "pg-13", "r"}
+        if v not in allowed:
+            raise ValueError(f"giphy.rating must be one of {allowed}")
+        return v
+
+
 class PlatformCredentialConfig(BaseModel):
     """Maps credential names to environment variable names."""
 
@@ -104,6 +118,7 @@ class BotConfig(BaseModel):
     generator_backend: str = "codex"
     codex: CodexConfig = CodexConfig()
     vscode_lm: VsCodeLmConfig = VsCodeLmConfig()
+    giphy: GiphyConfig = GiphyConfig()
     platform: str = "twitter"
     platform_config: dict[str, dict[str, str]] = {}
     logging: LoggingConfig = LoggingConfig()

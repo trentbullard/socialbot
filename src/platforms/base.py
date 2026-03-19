@@ -35,8 +35,8 @@ class PlatformAdapter(ABC):
         ...
 
     @abstractmethod
-    async def post(self, content: str, media_url: str | None = None) -> PostResult:
-        """Publish a post. Returns a PostResult with outcome details."""
+    async def post(self, content: str, media_path: str | None = None) -> PostResult:
+        """Publish a post, optionally with a media attachment. Returns a PostResult."""
         ...
 
     @abstractmethod

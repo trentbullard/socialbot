@@ -76,7 +76,7 @@ def test_trending_config_defaults() -> None:
     assert config.content.trending.enabled is False
     assert config.content.trending.source == "lm"
     assert config.content.trending.max_results == 10
-    assert config.content.trending.timeout_seconds == 60
+    assert config.content.trending.timeout_seconds == 300
 
 
 def test_trending_config_invalid_source() -> None:
