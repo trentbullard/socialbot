@@ -178,3 +178,28 @@ async def test_fetch_trending_lm_via_http() -> None:
         assert "trending" in result.lower()
     finally:
         server.shutdown()
+
+
+def test_fetch_trending_lm_via_codex_uses_exec() -> None:
+    config = _make_config(
+        generator_backend="codex",
+        codex={"cli_path": "/usr/bin/codex", "timeout_seconds": 5},
+        content={
+            "tone": ["sarcastic"],
+            "topics": ["AI", "gaming"],
+            "style": {"max_length": 280},
+            "lean": "test lean",
+            "guidelines": ["be nice"],
+            "trending": {"enabled": True, "source": "lm", "max_results": 5, "timeout_seconds": 7},
+        },
+    )
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "- AI chips\n- model launches"
+    mock_result.stderr = ""
+
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        result = fetch_lm_trending(config, "AI developments")
+
+    assert "AI chips" in result
+    assert mock_run.call_args.args[0] == ["/usr/bin/codex", "exec", "--full-auto", "-"]

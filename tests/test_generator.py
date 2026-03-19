@@ -57,6 +57,19 @@ def test_generate_post_success() -> None:
         assert result == "this is a generated post about AI lol"
 
 
+def test_generate_post_uses_codex_exec() -> None:
+    config = _make_config()
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "short post"
+    mock_result.stderr = ""
+
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        generate_post(config)
+
+    assert mock_run.call_args.args[0] == ["/usr/bin/codex", "exec", "--full-auto", "-"]
+
+
 def test_generate_post_trims_long_content() -> None:
     config = _make_config()
     config.content.style.max_length = 20
