@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+ENV_FILE="${SOCIAL_MEDIA_BOT_ENV_FILE:-/etc/social_media_bot.env}"
 CONFIG="config.yaml"
 DRY_RUN=""
 MAX_POSTS=""
@@ -33,6 +34,20 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Load environment variables from the canonical env file when available.
+if [ -e "$ENV_FILE" ]; then
+    if [ ! -r "$ENV_FILE" ]; then
+        echo "Error: env file exists but is not readable: $ENV_FILE"
+        exit 1
+    fi
+
+    echo "Loading environment variables from $ENV_FILE"
+    set -a
+    # shellcheck disable=SC1090
+    . "$ENV_FILE"
+    set +a
+fi
 
 # Check Python
 if ! command -v python3 &>/dev/null; then
