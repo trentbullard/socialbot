@@ -202,4 +202,10 @@ def test_fetch_trending_lm_via_codex_uses_exec() -> None:
         result = fetch_lm_trending(config, "AI developments")
 
     assert "AI chips" in result
-    assert mock_run.call_args.args[0] == ["/usr/bin/codex", "exec", "--full-auto", "-"]
+    assert mock_run.call_args.args[0] == [
+        "/usr/bin/codex",
+        "exec",
+        "--skip-git-repo-check",
+        "--full-auto",
+        "-",
+    ]

@@ -67,7 +67,13 @@ def test_generate_post_uses_codex_exec() -> None:
     with patch("subprocess.run", return_value=mock_result) as mock_run:
         generate_post(config)
 
-    assert mock_run.call_args.args[0] == ["/usr/bin/codex", "exec", "--full-auto", "-"]
+    assert mock_run.call_args.args[0] == [
+        "/usr/bin/codex",
+        "exec",
+        "--skip-git-repo-check",
+        "--full-auto",
+        "-",
+    ]
 
 
 def test_generate_post_trims_long_content() -> None:

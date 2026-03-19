@@ -88,7 +88,7 @@ def _generate_via_codex(
     for attempt in range(2):
         try:
             result = subprocess.run(
-                [codex_path, "exec", "--full-auto", "-"],
+                [codex_path, "exec", "--skip-git-repo-check", "--full-auto", "-"],
                 input=full_prompt,
                 capture_output=True,
                 text=True,

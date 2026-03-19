@@ -132,7 +132,7 @@ def _lm_research_via_codex(config: BotConfig, prompt: str) -> str:
     timeout = config.content.trending.timeout_seconds
     try:
         result = subprocess.run(
-            [cli_path, "exec", "--full-auto", "-"],
+            [cli_path, "exec", "--skip-git-repo-check", "--full-auto", "-"],
             input=prompt,
             capture_output=True,
             text=True,
