@@ -29,6 +29,7 @@ async def run_scheduler(
     config: BotConfig,
     post_callback: Callable[[], Coroutine[Any, Any, None]],
     max_posts: int | None = None,
+    shutdown_event: asyncio.Event | None = None,
 ) -> None:
     """Run the posting loop on a randomized schedule.
 
@@ -36,15 +37,30 @@ async def run_scheduler(
         config: Bot configuration.
         post_callback: Async callable invoked each cycle to generate & post.
         max_posts: If set, stop after this many posts (useful for testing).
+        shutdown_event: If set, the scheduler will exit when this event is triggered.
     """
     posts_made = 0
 
     while True:
+        if shutdown_event and shutdown_event.is_set():
+            logger.info("Shutdown requested — exiting scheduler")
+            break
+
         interval = _next_interval(config)
         next_mins = interval / 60
         logger.info("Next post in %.1f minutes", next_mins)
 
-        await asyncio.sleep(interval)
+        # Wait for the interval, but allow early exit on shutdown
+        if shutdown_event:
+            try:
+                await asyncio.wait_for(shutdown_event.wait(), timeout=interval)
+                # Event was set — time to shut down
+                logger.info("Shutdown requested during sleep — exiting scheduler")
+                break
+            except asyncio.TimeoutError:
+                pass  # Normal: interval elapsed, proceed to post
+        else:
+            await asyncio.sleep(interval)
 
         try:
             await post_callback()

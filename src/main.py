@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import os
 import random
+import signal
 import sys
 from datetime import datetime, timezone
 
@@ -180,11 +181,26 @@ async def _run(config: BotConfig, max_posts: int | None) -> None:
         sys.exit(1)
     logger.info("Authenticated successfully with platform: {}", config.platform)
 
+    shutdown_event = asyncio.Event()
+
+    def _signal_handler() -> None:
+        logger.info("Received shutdown signal (Ctrl+C) — finishing current cycle...")
+        shutdown_event.set()
+
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, _signal_handler)
+        except NotImplementedError:
+            # Windows doesn't support add_signal_handler; fall back below
+            pass
+
     async def callback() -> None:
         await _post_cycle(config, adapter)
 
-    logger.info("Starting scheduler loop (max_posts={})", max_posts or "unlimited")
-    await run_scheduler(config, callback, max_posts=max_posts)
+    logger.info("Starting scheduler loop (max_posts={}) — Ctrl+C to stop gracefully", max_posts or "unlimited")
+    await run_scheduler(config, callback, max_posts=max_posts, shutdown_event=shutdown_event)
+    logger.info("Bot stopped.")
 
 
 def main() -> None:
@@ -216,7 +232,12 @@ def main() -> None:
         _dry_run(config)
     else:
         logger.info("Platform: {} | Max posts: {}", config.platform, args.max_posts or "unlimited")
-        asyncio.run(_run(config, args.max_posts))
+        try:
+            asyncio.run(_run(config, args.max_posts))
+        except KeyboardInterrupt:
+            # Windows fallback — add_signal_handler isn't supported, so
+            # Ctrl+C raises KeyboardInterrupt directly
+            logger.info("Interrupted — shutting down.")
 
 
 if __name__ == "__main__":
