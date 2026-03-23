@@ -260,6 +260,21 @@ def test_twitter_adapter_filters_direct_replies() -> None:
 
     assert [reply.reply_id for reply in replies] == ["2"]
     assert replies[0].author_handle == "alice"
+    assert adapter._client.search_recent_tweets.call_args.kwargs["user_auth"] is True
+
+
+def test_twitter_adapter_search_recent_uses_user_auth() -> None:
+    pytest.importorskip("tweepy")
+    from src.platforms.twitter import TwitterAdapter
+
+    adapter = TwitterAdapter({})
+    adapter._client = MagicMock()
+    adapter._client.search_recent_tweets.return_value = SimpleNamespace(data=[])
+
+    results = asyncio.run(adapter.search_recent("ai", max_results=10))
+
+    assert results == []
+    assert adapter._client.search_recent_tweets.call_args.kwargs["user_auth"] is True
 
 
 def test_twitter_adapter_posts_replies_with_parent_id() -> None:

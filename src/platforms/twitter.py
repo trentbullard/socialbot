@@ -96,6 +96,7 @@ class TwitterAdapter(PlatformAdapter):
                 max_results=clamped,
                 sort_order="relevancy",
                 tweet_fields=["public_metrics", "entities", "author_id"],
+                user_auth=True,
             )
 
             if not response.data:
@@ -152,6 +153,7 @@ class TwitterAdapter(PlatformAdapter):
                     "referenced_tweets",
                 ],
                 user_fields=["username"],
+                user_auth=True,
             )
         except tweepy.TweepyException as exc:
             logger.warning("Twitter reply search failed for {}: {}", post_id, exc)
