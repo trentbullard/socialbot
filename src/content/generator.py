@@ -18,6 +18,9 @@ from src.content.prompts import (
     build_reply_generation_prompt,
     build_reply_system_prompt,
     build_system_prompt,
+    pick_engagement_goal,
+    pick_topic,
+    pick_variation_mode,
     should_include_emoji,
     should_include_gif,
 )
@@ -34,15 +37,22 @@ def _build_prompts(
     config: BotConfig,
     recent_posts: list[str] | None = None,
     trending_context: str = "",
+    topic: str | None = None,
 ) -> tuple[str, str]:
     """Return (system_prompt, user_prompt) for a generation request."""
-    system_prompt = build_system_prompt(config)
+    chosen_topic = topic or pick_topic(config)
+    system_prompt = build_system_prompt(
+        config,
+        variation_mode=pick_variation_mode(config),
+        engagement_goal=pick_engagement_goal(config),
+    )
     user_prompt = build_generation_prompt(
         config,
         recent_posts=recent_posts,
         include_emoji=should_include_emoji(config),
         include_gif=should_include_gif(config),
         trending_context=trending_context,
+        topic=chosen_topic,
     )
     logger.debug("System prompt ({} chars)", len(system_prompt))
     logger.debug("User prompt ({} chars):\n{}", len(user_prompt), user_prompt)
@@ -251,9 +261,15 @@ def _generate_via_codex(
     config: BotConfig,
     recent_posts: list[str] | None = None,
     trending_context: str = "",
+    topic: str | None = None,
 ) -> str | None:
     """Generate a post using the Codex CLI subprocess."""
-    system_prompt, user_prompt = _build_prompts(config, recent_posts, trending_context)
+    system_prompt, user_prompt = _build_prompts(
+        config,
+        recent_posts,
+        trending_context,
+        topic=topic,
+    )
     return _run_codex_prompt(
         config,
         system_prompt=system_prompt,
@@ -268,9 +284,15 @@ def _generate_via_vscode_lm(
     config: BotConfig,
     recent_posts: list[str] | None = None,
     trending_context: str = "",
+    topic: str | None = None,
 ) -> str | None:
     """Generate a post via the VS Code LM proxy HTTP server."""
-    system_prompt, user_prompt = _build_prompts(config, recent_posts, trending_context)
+    system_prompt, user_prompt = _build_prompts(
+        config,
+        recent_posts,
+        trending_context,
+        topic=topic,
+    )
     return _run_vscode_prompt(
         config,
         system_prompt=system_prompt,
@@ -344,6 +366,7 @@ def generate_post(
     config: BotConfig,
     recent_posts: list[str] | None = None,
     trending_context: str = "",
+    topic: str | None = None,
 ) -> str | None:
     """Generate a single post using the configured backend.
 
@@ -353,6 +376,6 @@ def generate_post(
     logger.debug("Using generator backend: {}", backend)
 
     if backend == "vscode-lm":
-        return _generate_via_vscode_lm(config, recent_posts, trending_context)
+        return _generate_via_vscode_lm(config, recent_posts, trending_context, topic=topic)
     else:
-        return _generate_via_codex(config, recent_posts, trending_context)
+        return _generate_via_codex(config, recent_posts, trending_context, topic=topic)

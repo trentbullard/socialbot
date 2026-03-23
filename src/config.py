@@ -55,6 +55,63 @@ class TrendingConfig(BaseModel):
         return v
 
 
+class PromptingConfig(BaseModel):
+    variation_modes: list[str] = Field(
+        default_factory=lambda: [
+            "observation",
+            "prediction",
+            "contrast",
+            "callout",
+            "deadpan",
+            "receipt",
+            "one-liner",
+            "question-like hook without asking a question",
+        ]
+    )
+    discouraged_patterns: list[str] = Field(
+        default_factory=lambda: [
+            "<topic> is like <reference>",
+            "generic summary ending",
+            "vague closing hashtag",
+            "list of broad generalities",
+            "forced pop-culture analogy",
+        ]
+    )
+    engagement_goals: list[str] = Field(
+        default_factory=lambda: [
+            "lead with a concrete observation",
+            "make the reader feel they noticed something true",
+            "prefer specific nouns over abstractions",
+            "invite internal agreement or disagreement without explicit CTA",
+        ]
+    )
+    engagement_anti_patterns: list[str] = Field(
+        default_factory=lambda: [
+            "do not sound like engagement bait",
+            "avoid generic hashtags unless truly central",
+            "avoid sounding like a take-generator",
+            "avoid explaining the joke",
+        ]
+    )
+    affinity_mode: str = "lean_charitable_people"
+    affinity_instructions: list[str] = Field(
+        default_factory=lambda: [
+            "if a person appears broadly aligned with the configured worldview, avoid cheap negative swipes",
+            "default to neutral or charitable framing unless there is a clear factual reason to criticize",
+            "do not praise blindly",
+        ]
+    )
+    recent_posts_window: int = Field(5, ge=1)
+
+    @field_validator("affinity_mode")
+    @classmethod
+    def valid_affinity_mode(cls, v: str) -> str:
+        allowed = {"off", "lean_charitable_people"}
+        if v not in allowed:
+            raise ValueError(f"content.prompting.affinity_mode must be one of {allowed}")
+        return v
+
+
 class ContentConfig(BaseModel):
     tone: list[str] = ["sarcastic", "dry", "blunt", "irreverent"]
     topics: list[str] = []
@@ -62,6 +119,7 @@ class ContentConfig(BaseModel):
     lean: str = ""
     guidelines: list[str] = []
     trending: TrendingConfig = TrendingConfig()
+    prompting: PromptingConfig = PromptingConfig()
 
 
 class CodexConfig(BaseModel):

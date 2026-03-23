@@ -60,6 +60,8 @@ def test_defaults_applied() -> None:
     assert config.posting.min_interval_minutes == 90
     assert config.posting.max_interval_minutes == 300
     assert config.content.style.max_length == 280
+    assert config.content.prompting.affinity_mode == "lean_charitable_people"
+    assert config.content.prompting.recent_posts_window == 5
     assert config.engagement.replies.min_replies_per_post == 5
     assert config.logging.level == "INFO"
 
@@ -77,6 +79,11 @@ def test_emoji_probability_bounds() -> None:
 def test_invalid_log_level() -> None:
     with pytest.raises(ValueError, match="logging.level"):
         BotConfig(logging={"level": "VERBOSE"})
+
+
+def test_invalid_affinity_mode() -> None:
+    with pytest.raises(ValueError, match="content.prompting.affinity_mode"):
+        BotConfig(content={"prompting": {"affinity_mode": "unknown"}})
 
 
 def test_invalid_reply_cap_order() -> None:
@@ -128,3 +135,9 @@ def test_missing_credential_env_var(minimal_config_data: dict) -> None:
 
     with pytest.raises(EnvironmentError, match="Required env var"):
         config.get_platform_credentials()
+
+
+def test_old_content_config_still_loads_without_prompting_block(minimal_config_data: dict) -> None:
+    config = BotConfig(**minimal_config_data)
+    assert config.content.prompting.variation_modes
+    assert config.content.prompting.affinity_mode == "lean_charitable_people"

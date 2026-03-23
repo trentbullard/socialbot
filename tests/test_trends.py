@@ -103,7 +103,7 @@ def test_generation_prompt_includes_trending_context() -> None:
         trending_context="Currently trending: AI taking everyone's jobs",
     )
     assert "AI taking everyone's jobs" in prompt
-    assert "sharp take" in prompt
+    assert "Reference a specific event, person, or angle" in prompt
 
 
 def test_generation_prompt_no_trending_when_empty() -> None:

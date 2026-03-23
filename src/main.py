@@ -76,7 +76,12 @@ async def _post_cycle(
     if trending_context:
         logger.info("Injecting trending context ({} chars) for topic: {}", len(trending_context), topic)
 
-    content = generate_post(config, recent_posts=_recent_posts, trending_context=trending_context)
+    content = generate_post(
+        config,
+        recent_posts=_recent_posts,
+        trending_context=trending_context,
+        topic=topic,
+    )
     if content is None:
         logger.warning("Skipping post slot — generation failed")
         return
@@ -161,7 +166,12 @@ def _dry_run(config: BotConfig) -> None:
         logger.info("Trending context ({} chars) for topic: {}", len(trending_context), topic)
         logger.debug("Trending context:\n{}", trending_context)
 
-    content = generate_post(config, recent_posts=_recent_posts, trending_context=trending_context)
+    content = generate_post(
+        config,
+        recent_posts=_recent_posts,
+        trending_context=trending_context,
+        topic=topic,
+    )
     now = datetime.now(timezone.utc)
 
     if content is None:

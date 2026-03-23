@@ -70,10 +70,40 @@ content:
     # Max seconds to wait for trending research (LM research can be slow)
     timeout_seconds: 60
 
+  # Prompt strategy: steer diversity and engagement without hard-coded templates
+  prompting:
+    variation_modes:
+      - observation
+      - prediction
+      - contrast
+      - callout
+      - deadpan
+      - receipt
+      - one-liner
+      - question-like hook without asking a question
+    discouraged_patterns:
+      - generic summary ending
+    engagement_goals:
+      - lead with a concrete observation
+      - make the reader feel they noticed something true
+      - prefer specific nouns over abstractions
+      - invite internal agreement or disagreement without explicit CTA
+    engagement_anti_patterns:
+      - do not sound like engagement bait
+      - avoid generic hashtags unless truly central
+      - avoid sounding like a take-generator
+      - avoid explaining the joke
+    affinity_mode: lean_charitable_people   # off | lean_charitable_people
+    affinity_instructions:
+      - if a person appears broadly aligned with the configured worldview, avoid cheap negative swipes
+      - default to neutral or charitable framing unless there is a clear factual reason to criticize
+      - do not praise blindly
+    recent_posts_window: 5
+
 # Which backend to use for content generation: "codex" or "vscode-lm"
 # - codex:     calls the Codex CLI (requires OpenAI API key)
 # - vscode-lm: calls the local VS Code LM proxy extension (uses Copilot subscription)
-generator_backend: vscode-lm
+generator_backend: codex
 
 codex:
   # Path to Codex CLI binary. Leave blank to auto-detect on PATH.

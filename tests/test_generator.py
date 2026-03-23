@@ -76,6 +76,19 @@ def test_generate_post_uses_codex_exec() -> None:
     ]
 
 
+def test_generate_post_uses_explicit_topic_in_prompt() -> None:
+    config = _make_config()
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "short post"
+    mock_result.stderr = ""
+
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        generate_post(config, topic="streaming drama")
+
+    assert "Write a single social media post about: streaming drama" in mock_run.call_args.kwargs["input"]
+
+
 def test_generate_post_trims_long_content() -> None:
     config = _make_config()
     config.content.style.max_length = 20
