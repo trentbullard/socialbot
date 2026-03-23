@@ -60,6 +60,7 @@ def test_defaults_applied() -> None:
     assert config.posting.min_interval_minutes == 90
     assert config.posting.max_interval_minutes == 300
     assert config.content.style.max_length == 280
+    assert config.engagement.replies.min_replies_per_post == 5
     assert config.logging.level == "INFO"
 
 
@@ -76,6 +77,28 @@ def test_emoji_probability_bounds() -> None:
 def test_invalid_log_level() -> None:
     with pytest.raises(ValueError, match="logging.level"):
         BotConfig(logging={"level": "VERBOSE"})
+
+
+def test_invalid_reply_cap_order() -> None:
+    with pytest.raises(ValueError, match="engagement.replies.max_replies_per_post"):
+        BotConfig(engagement={"replies": {"min_replies_per_post": 8, "max_replies_per_post": 5}})
+
+
+def test_invalid_reply_poll_interval_order() -> None:
+    with pytest.raises(ValueError, match="engagement.replies.poll_interval_seconds_max"):
+        BotConfig(
+            engagement={
+                "replies": {
+                    "poll_interval_seconds_min": 90,
+                    "poll_interval_seconds_max": 30,
+                }
+            }
+        )
+
+
+def test_invalid_reply_emoji_probability() -> None:
+    with pytest.raises(ValueError):
+        BotConfig(engagement={"replies": {"positive_emoji_probability": 1.2}})
 
 
 def test_get_platform_credentials(minimal_config_data: dict) -> None:

@@ -23,9 +23,7 @@ def test_next_interval_range() -> None:
         interval = _next_interval(config)
         assert 60 <= interval <= 130  # 1min..2min base + 0..10s jitter
 
-
-@pytest.mark.asyncio
-async def test_scheduler_max_posts() -> None:
+def test_scheduler_max_posts() -> None:
     config = BotConfig(
         posting={
             "min_interval_minutes": 0,
@@ -40,5 +38,5 @@ async def test_scheduler_max_posts() -> None:
         nonlocal call_count
         call_count += 1
 
-    await run_scheduler(config, callback, max_posts=3)
+    asyncio.run(run_scheduler(config, callback, max_posts=3))
     assert call_count == 3

@@ -7,8 +7,10 @@ cd "$SCRIPT_DIR"
 ENV_FILE="${SOCIAL_MEDIA_BOT_ENV_FILE:-/etc/social_media_bot.env}"
 CONFIG="config.yaml"
 DRY_RUN=""
+DRY_RUN_REPLIES=""
 MAX_POSTS=""
 POST_NOW=""
+REPLY_COMMENTS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -20,12 +22,20 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN="--dry-run"
             shift
             ;;
+        --dry-run-replies)
+            DRY_RUN_REPLIES="--dry-run-replies"
+            shift
+            ;;
         --post-now)
             POST_NOW="--post-now"
             shift
             ;;
         --max-posts)
             MAX_POSTS="--max-posts $2"
+            shift 2
+            ;;
+        --reply-comment)
+            REPLY_COMMENTS+=("--reply-comment" "$2")
             shift 2
             ;;
         *)
@@ -70,4 +80,4 @@ pip install -q -r requirements.txt
 
 echo "Starting bot..."
 # shellcheck disable=SC2086
-python -m src.main --config "$CONFIG" $DRY_RUN $POST_NOW $MAX_POSTS
+python -m src.main --config "$CONFIG" $DRY_RUN $DRY_RUN_REPLIES $POST_NOW $MAX_POSTS "${REPLY_COMMENTS[@]}"

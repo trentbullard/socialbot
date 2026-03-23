@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from src.config import BotConfig
-from src.content.generator import _resolve_codex_path, generate_post
+from src.content.generator import _resolve_codex_path, generate_post, generate_reply, preview_reply_prompts
 
 
 def _make_config(**overrides) -> BotConfig:
@@ -179,3 +179,73 @@ def test_vscode_lm_returns_none_on_connection_error() -> None:
 def test_invalid_generator_backend() -> None:
     with pytest.raises(ValueError, match="generator_backend"):
         BotConfig(generator_backend="invalid")
+
+
+def test_generate_reply_retries_invalid_output() -> None:
+    config = _make_config()
+    invalid = MagicMock()
+    invalid.returncode = 0
+    invalid.stdout = "this is way too many words for a quick terse reply"
+    invalid.stderr = ""
+
+    valid = MagicMock()
+    valid.returncode = 0
+    valid.stdout = "fair enough there 😅"
+    valid.stderr = ""
+
+    with patch("subprocess.run", side_effect=[invalid, valid]):
+        result = generate_reply(
+            config,
+            comment_text="great point lol",
+            sentiment="positive",
+            emoji="😅",
+        )
+        assert result == "fair enough there 😅"
+
+
+def test_generate_reply_allows_short_acknowledgement() -> None:
+    config = _make_config()
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "so true 😅"
+    mock_result.stderr = ""
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = generate_reply(
+            config,
+            comment_text="great point lol",
+            sentiment="positive",
+            emoji="😅",
+        )
+        assert result == "so true 😅"
+
+
+def test_generate_reply_rejects_disallowed_emoji() -> None:
+    config = _make_config()
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "fair enough there 😂"
+    mock_result.stderr = ""
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = generate_reply(
+            config,
+            comment_text="wrong and dumb",
+            sentiment="negative",
+            emoji="🤡",
+        )
+        assert result is None
+
+
+def test_preview_reply_prompts_exposes_comment_context() -> None:
+    config = _make_config()
+    system_prompt, user_prompt = preview_reply_prompts(
+        config,
+        comment_text="lol this is actually true",
+        sentiment="positive",
+        emoji="😅",
+    )
+
+    assert "extremely terse, quick human reaction" in system_prompt
+    assert "lol this is actually true" in user_prompt
+    assert "😅" in user_prompt

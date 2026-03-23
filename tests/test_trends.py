@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Thread
@@ -114,9 +115,7 @@ def test_generation_prompt_no_trending_when_empty() -> None:
 # ---------------------------------------------------------------------------
 # Tests for fetch_trending_context
 # ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_fetch_trending_disabled() -> None:
+def test_fetch_trending_disabled() -> None:
     config = _make_config(content={
         "tone": ["sarcastic"],
         "topics": ["AI"],
@@ -125,12 +124,11 @@ async def test_fetch_trending_disabled() -> None:
         "guidelines": [],
         "trending": {"enabled": False, "source": "lm"},
     })
-    result = await fetch_trending_context(config, "AI")
+    result = asyncio.run(fetch_trending_context(config, "AI"))
     assert result == ""
 
 
-@pytest.mark.asyncio
-async def test_fetch_trending_platform_source() -> None:
+def test_fetch_trending_platform_source() -> None:
     config = _make_config(content={
         "tone": ["sarcastic"],
         "topics": ["AI"],
@@ -143,13 +141,12 @@ async def test_fetch_trending_platform_source() -> None:
     mock_adapter.search_recent.return_value = [
         TrendingPost(text="AI is everywhere", hashtags=["AI"], engagement=100),
     ]
-    result = await fetch_trending_context(config, "AI", adapter=mock_adapter)
+    result = asyncio.run(fetch_trending_context(config, "AI", adapter=mock_adapter))
     assert "AI is everywhere" in result
     mock_adapter.search_recent.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_fetch_trending_lm_via_http() -> None:
+def test_fetch_trending_lm_via_http() -> None:
     """Test LM trending research using a real local HTTP server."""
 
     class Handler(BaseHTTPRequestHandler):

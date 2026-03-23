@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 from loguru import logger
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PersonaConfig(BaseModel):
@@ -124,6 +124,55 @@ class LoggingConfig(BaseModel):
         return v_upper
 
 
+class EngagementRepliesConfig(BaseModel):
+    enabled: bool = False
+    min_replies_per_post: int = Field(5, ge=1)
+    max_replies_per_post: int = Field(8, ge=1)
+    window_minutes: int = Field(120, ge=1)
+    poll_interval_seconds_min: int = Field(30, ge=1)
+    poll_interval_seconds_max: int = Field(90, ge=1)
+    reply_delay_seconds_min: int = Field(8, ge=0)
+    reply_delay_seconds_max: int = Field(40, ge=0)
+    allow_neutral_as_positive: bool = True
+    max_replies_per_user_per_post: int = Field(1, ge=1)
+    positive_emojis: list[str] = Field(default_factory=lambda: ["😅", "🤣"])
+    negative_emojis: list[str] = Field(default_factory=lambda: ["🥴", "🤡"])
+    positive_emoji_probability: float = Field(0.35, ge=0.0, le=1.0)
+    negative_emoji_probability: float = Field(0.5, ge=0.0, le=1.0)
+    skip_if_contains_links: bool = True
+    skip_if_author_is_self: bool = True
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "EngagementRepliesConfig":
+        if self.max_replies_per_post < self.min_replies_per_post:
+            raise ValueError("engagement.replies.max_replies_per_post must be >= min_replies_per_post")
+        if self.poll_interval_seconds_max < self.poll_interval_seconds_min:
+            raise ValueError(
+                "engagement.replies.poll_interval_seconds_max must be >= poll_interval_seconds_min"
+            )
+        if self.reply_delay_seconds_max < self.reply_delay_seconds_min:
+            raise ValueError(
+                "engagement.replies.reply_delay_seconds_max must be >= reply_delay_seconds_min"
+            )
+        if not self.positive_emojis:
+            raise ValueError("engagement.replies.positive_emojis must not be empty")
+        if not self.negative_emojis:
+            raise ValueError("engagement.replies.negative_emojis must not be empty")
+        return self
+
+
+class EngagementConfig(BaseModel):
+    state_path: str = ".bot_state/engagement_state.json"
+    replies: EngagementRepliesConfig = EngagementRepliesConfig()
+
+    @field_validator("state_path")
+    @classmethod
+    def valid_state_path(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("engagement.state_path must not be empty")
+        return v
+
+
 class BotConfig(BaseModel):
     """Root configuration model."""
 
@@ -135,6 +184,7 @@ class BotConfig(BaseModel):
     vscode_lm: VsCodeLmConfig = VsCodeLmConfig()
     brave_search: BraveSearchConfig = BraveSearchConfig()
     giphy: GiphyConfig = GiphyConfig()
+    engagement: EngagementConfig = EngagementConfig()
     platform: str = "twitter"
     platform_config: dict[str, dict[str, str]] = {}
     logging: LoggingConfig = LoggingConfig()

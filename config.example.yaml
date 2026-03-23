@@ -110,6 +110,27 @@ giphy:
   # Timeout for Giphy API requests
   timeout_seconds: 10
 
+engagement:
+  # Persisted state to avoid duplicate comment replies across restarts
+  state_path: .bot_state/engagement_state.json
+  replies:
+    enabled: false
+    min_replies_per_post: 5
+    max_replies_per_post: 8
+    window_minutes: 120
+    poll_interval_seconds_min: 30
+    poll_interval_seconds_max: 90
+    reply_delay_seconds_min: 8
+    reply_delay_seconds_max: 40
+    allow_neutral_as_positive: true
+    max_replies_per_user_per_post: 1
+    positive_emojis: ["😅", "🤣"]
+    negative_emojis: ["🥴", "🤡"]
+    positive_emoji_probability: 0.35
+    negative_emoji_probability: 0.5
+    skip_if_contains_links: true
+    skip_if_author_is_self: true
+
 platform: twitter
 
 platform_config:

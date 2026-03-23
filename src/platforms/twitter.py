@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import tweepy
 import tweepy.asynchronous
 from loguru import logger
 
-from src.platforms.base import PlatformAdapter, PostResult, TrendingPost
+from src.platforms.base import PlatformAdapter, PostResult, ReplyCandidate, TrendingPost
 
 
 class TwitterAdapter(PlatformAdapter):
@@ -16,6 +18,8 @@ class TwitterAdapter(PlatformAdapter):
         self._credentials = credentials
         self._client: tweepy.Client | None = None
         self._api: tweepy.API | None = None  # v1.1 API for media upload
+        self._user_id: str = ""
+        self._username: str = ""
 
     async def authenticate(self) -> None:
         logger.debug("Authenticating Twitter client...")
@@ -40,12 +44,21 @@ class TwitterAdapter(PlatformAdapter):
             return False
         try:
             me = self._client.get_me()
-            return me.data is not None
+            if me.data is None:
+                return False
+            self._user_id = str(me.data.id)
+            self._username = getattr(me.data, "username", "") or ""
+            return True
         except tweepy.TweepyException as exc:
             logger.warning("Twitter credential validation failed: {}", exc)
             return False
 
-    async def post(self, content: str, media_path: str | None = None) -> PostResult:
+    async def post(
+        self,
+        content: str,
+        media_path: str | None = None,
+        in_reply_to_post_id: str | None = None,
+    ) -> PostResult:
         if self._client is None:
             return PostResult(success=False, error="Not authenticated")
 
@@ -60,6 +73,7 @@ class TwitterAdapter(PlatformAdapter):
             response = self._client.create_tweet(
                 text=content,
                 media_ids=media_ids,
+                in_reply_to_tweet_id=in_reply_to_post_id,
             )
             tweet_id = str(response.data["id"])
             url = f"https://x.com/i/status/{tweet_id}"
@@ -114,3 +128,78 @@ class TwitterAdapter(PlatformAdapter):
         except tweepy.TweepyException as exc:
             logger.warning("Twitter search failed: {}", exc)
             return []
+
+    async def list_direct_replies(
+        self,
+        post_id: str,
+        since_id: str | None = None,
+    ) -> list[ReplyCandidate]:
+        if self._client is None:
+            logger.warning("Cannot list replies — not authenticated")
+            return []
+
+        try:
+            response = self._client.search_recent_tweets(
+                query=f"conversation_id:{post_id}",
+                since_id=since_id,
+                max_results=100,
+                sort_order="recency",
+                expansions=["author_id"],
+                tweet_fields=[
+                    "author_id",
+                    "conversation_id",
+                    "created_at",
+                    "referenced_tweets",
+                ],
+                user_fields=["username"],
+            )
+        except tweepy.TweepyException as exc:
+            logger.warning("Twitter reply search failed for {}: {}", post_id, exc)
+            return []
+
+        if not response.data:
+            return []
+
+        includes = getattr(response, "includes", {}) or {}
+        users = includes.get("users", []) if isinstance(includes, dict) else []
+        user_map = {
+            str(user.id): getattr(user, "username", "") or ""
+            for user in users
+        }
+
+        results: list[ReplyCandidate] = []
+        for tweet in response.data:
+            parent_id = self._extract_replied_to_parent_id(tweet)
+            if parent_id != post_id:
+                continue
+
+            created_at = getattr(tweet, "created_at", None) or datetime.now(timezone.utc)
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+
+            author_id = str(getattr(tweet, "author_id", "") or "")
+            results.append(ReplyCandidate(
+                reply_id=str(tweet.id),
+                parent_post_id=post_id,
+                author_id=author_id,
+                author_handle=user_map.get(author_id, ""),
+                text=getattr(tweet, "text", "") or "",
+                created_at=created_at,
+            ))
+
+        return results
+
+    def get_authenticated_user_id(self) -> str:
+        return self._user_id
+
+    @staticmethod
+    def _extract_replied_to_parent_id(tweet: object) -> str:
+        for ref in getattr(tweet, "referenced_tweets", []) or []:
+            ref_type = getattr(ref, "type", None)
+            ref_id = getattr(ref, "id", None)
+            if isinstance(ref, dict):
+                ref_type = ref.get("type")
+                ref_id = ref.get("id")
+            if ref_type == "replied_to":
+                return str(ref_id or "")
+        return ""

@@ -31,6 +31,27 @@ def build_system_prompt(config: BotConfig) -> str:
     )
 
 
+def build_reply_system_prompt(config: BotConfig) -> str:
+    """Build the system prompt for terse comment replies."""
+    tone_str = ", ".join(config.content.tone)
+    guidelines_str = "\n".join(f"- {g}" for g in config.content.guidelines)
+
+    return (
+        "You are writing a reply from the same social media persona.\n"
+        f"Tone: {tone_str}.\n"
+        f"Worldview: {config.content.lean}. Keep it implied.\n\n"
+        "Reply rules:\n"
+        "- Sound like an extremely terse, quick human reaction\n"
+        "- Usually 1 to 6 words, and never rambling\n"
+        "- Lowercase or minimal capitalization only\n"
+        "- Minimal punctuation\n"
+        "- No hashtags, no links, no @mentions, no questions\n"
+        "- One brief acknowledgement, recognition, or dismissal only\n"
+        "- Do not explain, justify, debate, or invite more discussion\n\n"
+        f"Hard guidelines:\n{guidelines_str}"
+    )
+
+
 def build_generation_prompt(
     config: BotConfig,
     recent_posts: list[str] | None = None,
@@ -71,6 +92,34 @@ def build_generation_prompt(
     parts.append("\nRespond with ONLY the post text. No quotes, no explanation.")
 
     return "\n".join(parts)
+
+
+def build_reply_generation_prompt(
+    comment_text: str,
+    *,
+    sentiment: str,
+    emoji: str | None,
+) -> str:
+    """Build the user prompt for a short reply to a single comment."""
+    sentiment_instructions = {
+        "positive": "Sound amused, approving, or lightly agreeing.",
+        "negative": "Sound dismissive, lightly mocking, or unimpressed.",
+    }
+    instruction = sentiment_instructions.get(sentiment, "Keep the reaction brief.")
+
+    emoji_instruction = (
+        f"Include exactly this emoji once at the end: {emoji}"
+        if emoji
+        else "Do not use any emoji."
+    )
+
+    return (
+        "Reply to this comment:\n"
+        f"{comment_text}\n\n"
+        f"{instruction}\n"
+        f"{emoji_instruction}\n"
+        "Respond with ONLY the reply text."
+    )
 
 
 def should_include_emoji(config: BotConfig) -> bool:

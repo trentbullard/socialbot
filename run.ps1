@@ -9,12 +9,18 @@
     Authenticate and post once immediately, then exit.
 .PARAMETER MaxPosts
     Stop after N posts.
+.PARAMETER DryRunReplies
+    Generate sample reply prompts and replies without platform auth.
+.PARAMETER ReplyComment
+    Sample comment to use with -DryRunReplies. Can be repeated.
 #>
 param(
     [string]$Config = "config.yaml",
     [switch]$DryRun,
+    [switch]$DryRunReplies,
     [switch]$PostNow,
-    [int]$MaxPosts = 0
+    [int]$MaxPosts = 0,
+    [string[]]$ReplyComment = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,12 +70,20 @@ try {
         $cmd += "--dry-run"
     }
 
+    if ($DryRunReplies) {
+        $cmd += "--dry-run-replies"
+    }
+
     if ($PostNow) {
         $cmd += "--post-now"
     }
 
     if ($MaxPosts -gt 0) {
         $cmd += @("--max-posts", $MaxPosts)
+    }
+
+    foreach ($comment in $ReplyComment) {
+        $cmd += @("--reply-comment", $comment)
     }
 
     Write-Host "Starting bot..."
