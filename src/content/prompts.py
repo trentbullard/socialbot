@@ -171,7 +171,7 @@ def build_generation_prompt(
 
     parts.append(
         "\nMake it feel like a human who noticed something true before everyone else, "
-        "not a generic content machine. Avoid vague hashtags unless they are central to the joke."
+        "not a generic content machine."
     )
     parts.append("\nRespond with ONLY the post text. No quotes, no explanation.")
 

@@ -72,7 +72,6 @@ class PromptingConfig(BaseModel):
         default_factory=lambda: [
             "<topic> is like <reference>",
             "generic summary ending",
-            "vague closing hashtag",
             "list of broad generalities",
             "forced pop-culture analogy",
         ]
@@ -88,7 +87,6 @@ class PromptingConfig(BaseModel):
     engagement_anti_patterns: list[str] = Field(
         default_factory=lambda: [
             "do not sound like engagement bait",
-            "avoid generic hashtags unless truly central",
             "avoid sounding like a take-generator",
             "avoid explaining the joke",
         ]

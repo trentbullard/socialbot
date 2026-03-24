@@ -90,7 +90,6 @@ content:
       - invite internal agreement or disagreement without explicit CTA
     engagement_anti_patterns:
       - do not sound like engagement bait
-      - avoid generic hashtags unless truly central
       - avoid sounding like a take-generator
       - avoid explaining the joke
     affinity_mode: lean_charitable_people   # off | lean_charitable_people
