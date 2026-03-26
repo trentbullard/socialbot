@@ -6,6 +6,8 @@ import gzip
 import json
 import os
 import random
+import shutil
+import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -14,6 +16,7 @@ from datetime import datetime, timezone
 from loguru import logger
 
 from src.config import BotConfig
+from src.content.generator import _build_codex_env
 from src.platforms.base import PlatformAdapter, TrendingPost
 
 
@@ -229,9 +232,6 @@ def _lm_research_via_vscode(config: BotConfig, prompt: str) -> str:
 
 def _lm_research_via_codex(config: BotConfig, prompt: str) -> str:
     """Call Codex CLI for trending research."""
-    import shutil
-    import subprocess
-
     cli_path = config.codex.cli_path
     if not cli_path:
         for name in ("codex", "codex.exe", "codex-cli", "codex-cli.exe"):
@@ -251,6 +251,7 @@ def _lm_research_via_codex(config: BotConfig, prompt: str) -> str:
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=_build_codex_env(config),
         )
         content = result.stdout.strip()
         if content and result.returncode == 0:

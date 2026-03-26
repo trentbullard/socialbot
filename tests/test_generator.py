@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.config import BotConfig
-from src.content.generator import _resolve_codex_path, generate_post, generate_reply, preview_reply_prompts
+from src.content.generator import (
+    _build_codex_env,
+    _resolve_codex_path,
+    generate_post,
+    generate_reply,
+    preview_reply_prompts,
+)
 
 
 def _make_config(**overrides) -> BotConfig:
@@ -21,7 +28,7 @@ def _make_config(**overrides) -> BotConfig:
             "guidelines": [],
         },
         "generator_backend": "codex",
-        "codex": {"cli_path": "/usr/bin/codex", "timeout_seconds": 5},
+        "codex": {"cli_path": "/usr/bin/codex", "node_path": "", "timeout_seconds": 5},
     }
     base.update(overrides)
     return BotConfig(**base)
@@ -74,6 +81,45 @@ def test_generate_post_uses_codex_exec() -> None:
         "--full-auto",
         "-",
     ]
+
+
+def test_build_codex_env_prepends_node_dir() -> None:
+    config = _make_config(
+        codex={
+            "cli_path": "/usr/bin/codex",
+            "node_path": "/home/bot/.nvm/versions/node/v22.15.0/bin/node",
+            "timeout_seconds": 5,
+        }
+    )
+
+    with patch.dict("os.environ", {"PATH": "/usr/bin"}, clear=True):
+        env = _build_codex_env(config)
+
+    assert env["PATH"] == f"/home/bot/.nvm/versions/node/v22.15.0/bin{os.pathsep}/usr/bin"
+    assert env["CODEX_NODE_PATH"] == "/home/bot/.nvm/versions/node/v22.15.0/bin/node"
+
+
+def test_generate_post_passes_codex_env() -> None:
+    config = _make_config(
+        codex={
+            "cli_path": "/usr/bin/codex",
+            "node_path": "/home/bot/.nvm/versions/node/v22.15.0/bin/node",
+            "timeout_seconds": 5,
+        }
+    )
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "short post"
+    mock_result.stderr = ""
+
+    with patch.dict("os.environ", {"PATH": "/usr/bin"}, clear=True):
+        with patch("subprocess.run", return_value=mock_result) as mock_run:
+            generate_post(config)
+
+    assert (
+        mock_run.call_args.kwargs["env"]["PATH"]
+        == f"/home/bot/.nvm/versions/node/v22.15.0/bin{os.pathsep}/usr/bin"
+    )
 
 
 def test_generate_post_uses_explicit_topic_in_prompt() -> None:

@@ -107,6 +107,9 @@ generator_backend: codex
 codex:
   # Path to Codex CLI binary. Leave blank to auto-detect on PATH.
   cli_path: ""
+  # Optional explicit Node binary path for environments where Codex is installed
+  # under Yarn/npm but the runtime PATH does not include Node (common with systemd+nvm).
+  node_path: ""
   # Model to request
   model: ""
   # Max seconds to wait for content generation

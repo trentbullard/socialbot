@@ -122,6 +122,7 @@ class ContentConfig(BaseModel):
 
 class CodexConfig(BaseModel):
     cli_path: str = ""
+    node_path: str = ""
     model: str = ""
     timeout_seconds: int = 300
 

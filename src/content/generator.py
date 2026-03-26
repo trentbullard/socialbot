@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -134,6 +135,19 @@ def _resolve_codex_path(config: BotConfig) -> str:
     )
 
 
+def _build_codex_env(config: BotConfig) -> dict[str, str]:
+    """Build subprocess env for Codex, optionally prepending an explicit Node path."""
+    env = os.environ.copy()
+    node_path = config.codex.node_path.strip()
+    if node_path:
+        node_dir = os.path.dirname(node_path)
+        current_path = env.get("PATH", "")
+        env["PATH"] = node_dir if not current_path else f"{node_dir}{os.pathsep}{current_path}"
+        env["CODEX_NODE_PATH"] = node_path
+        logger.debug("Prepended Node directory to PATH for Codex subprocess: {}", node_dir)
+    return env
+
+
 def _run_codex_prompt(
     config: BotConfig,
     *,
@@ -145,6 +159,7 @@ def _run_codex_prompt(
 ) -> str | None:
     """Send an arbitrary prompt to the Codex CLI backend."""
     codex_path = _resolve_codex_path(config)
+    codex_env = _build_codex_env(config)
     logger.info("Generating {} via Codex CLI at: {}", log_label, codex_path)
     full_prompt = f"{system_prompt}\n\n{user_prompt}"
 
@@ -156,6 +171,7 @@ def _run_codex_prompt(
                 capture_output=True,
                 text=True,
                 timeout=timeout_seconds,
+                env=codex_env,
             )
 
             if result.returncode != 0:
