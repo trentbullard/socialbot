@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from src.config import BotConfig
-from src.main import _dry_run_replies
+from src.main import _build_log_formatter, _dry_run_replies
 
 
 def _make_config() -> BotConfig:
@@ -38,3 +39,21 @@ def test_dry_run_replies_uses_local_generation_only() -> None:
 
     mock_preview.assert_called_once()
     mock_generate.assert_called_once()
+
+
+def test_build_log_formatter_includes_timezone_details() -> None:
+    formatter = _build_log_formatter("America/Chicago")
+    rendered = formatter(
+        {
+            "time": datetime(2026, 1, 15, 18, 30, 0, tzinfo=timezone.utc),
+            "level": type("Level", (), {"name": "INFO"})(),
+            "name": "src.main",
+            "function": "main",
+            "line": 123,
+            "message": "hello world",
+            "exception": None,
+        }
+    )
+
+    assert "2026-01-15 12:30:00 CST -0600 [America/Chicago]" in rendered
+    assert "hello world" in rendered

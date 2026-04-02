@@ -25,6 +25,22 @@ def _next_interval(config: BotConfig) -> float:
     return base + jitter
 
 
+def _format_interval(seconds: float) -> str:
+    """Convert seconds into a concise human-readable duration."""
+    remaining = max(0, int(round(seconds)))
+    hours, remainder = divmod(remaining, 3600)
+    minutes, secs = divmod(remainder, 60)
+
+    parts: list[str] = []
+    if hours:
+        parts.append(f"{hours} hour" if hours == 1 else f"{hours} hours")
+    if minutes:
+        parts.append(f"{minutes} minute" if minutes == 1 else f"{minutes} minutes")
+    if secs or not parts:
+        parts.append(f"{secs} second" if secs == 1 else f"{secs} seconds")
+    return " ".join(parts)
+
+
 async def run_scheduler(
     config: BotConfig,
     post_callback: Callable[[], Coroutine[Any, Any, None]],
@@ -47,8 +63,8 @@ async def run_scheduler(
             break
 
         interval = _next_interval(config)
-        next_mins = interval / 60
-        logger.info("Next post in {:.1f} minutes", next_mins)
+        if config.logging.log_next_post_countdown:
+            logger.info("Next post in {}", _format_interval(interval))
 
         # Wait for the interval, but allow early exit on shutdown
         if shutdown_event:

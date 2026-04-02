@@ -64,6 +64,8 @@ def test_defaults_applied() -> None:
     assert config.content.prompting.recent_posts_window == 5
     assert config.engagement.replies.min_replies_per_post == 5
     assert config.logging.level == "INFO"
+    assert config.logging.timezone == "local"
+    assert config.logging.log_next_post_countdown is True
 
 
 def test_invalid_interval_order() -> None:
@@ -79,6 +81,11 @@ def test_emoji_probability_bounds() -> None:
 def test_invalid_log_level() -> None:
     with pytest.raises(ValueError, match="logging.level"):
         BotConfig(logging={"level": "VERBOSE"})
+
+
+def test_invalid_log_timezone() -> None:
+    with pytest.raises(ValueError, match="logging.timezone"):
+        BotConfig(logging={"timezone": "Mars/OlympusMons"})
 
 
 def test_invalid_affinity_mode() -> None:

@@ -179,3 +179,5 @@ platform_config:
 
 logging:
   level: INFO    # DEBUG | INFO | WARNING | ERROR
+  timezone: local   # local or IANA timezone like America/Chicago
+  log_next_post_countdown: true

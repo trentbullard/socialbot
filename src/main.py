@@ -8,7 +8,10 @@ import os
 import random
 import signal
 import sys
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import datetime, timezone, tzinfo
+from typing import Any
+from zoneinfo import ZoneInfo
 
 from loguru import logger
 
@@ -34,13 +37,39 @@ DEFAULT_REPLY_DRY_RUN_COMMENTS = [
     "interesting point honestly",
 ]
 
+def _resolve_log_timezone(timezone_name: str) -> tuple[tzinfo, str]:
+    if timezone_name == "local":
+        local_tz = datetime.now().astimezone().tzinfo
+        if local_tz is None:
+            return timezone.utc, "local"
+        return local_tz, "local"
+    return ZoneInfo(timezone_name), timezone_name
 
-def _setup_logging(level: str) -> None:
+
+def _build_log_formatter(timezone_name: str) -> Callable[[dict[str, Any]], str]:
+    tz, tz_label = _resolve_log_timezone(timezone_name)
+
+    def formatter(record: dict[str, Any]) -> str:
+        timestamp = record["time"].astimezone(tz)
+        tz_abbrev = timestamp.tzname() or "UTC"
+        tz_offset = timestamp.strftime("%z")
+        exception = f"\n{record['exception']}" if record["exception"] else ""
+        return (
+            f"<green>{timestamp:%Y-%m-%d %H:%M:%S} {tz_abbrev} {tz_offset} [{tz_label}]</green> | "
+            f"<level>{record['level'].name:<8}</level> | "
+            f"<cyan>{record['name']}</cyan>:<cyan>{record['function']}</cyan>:<cyan>{record['line']}</cyan> - "
+            f"<level>{record['message']}</level>{exception}\n"
+        )
+
+    return formatter
+
+
+def _setup_logging(level: str, timezone_name: str) -> None:
     logger.remove()  # remove default handler
     logger.add(
         sys.stderr,
         level=level,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        format=_build_log_formatter(timezone_name),
     )
 
 
@@ -369,7 +398,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config = load_config(args.config)
-    _setup_logging(config.logging.level)
+    _setup_logging(config.logging.level, config.logging.timezone)
 
     logger.info("Loaded config from {}", args.config)
 

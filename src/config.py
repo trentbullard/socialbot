@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from loguru import logger
@@ -170,6 +172,8 @@ class PlatformCredentialConfig(BaseModel):
 
 class LoggingConfig(BaseModel):
     level: str = "INFO"
+    timezone: str = "local"
+    log_next_post_countdown: bool = True
 
     @field_validator("level")
     @classmethod
@@ -179,6 +183,21 @@ class LoggingConfig(BaseModel):
         if v_upper not in allowed:
             raise ValueError(f"logging.level must be one of {allowed}")
         return v_upper
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_timezone(cls, v: str) -> str:
+        tz_name = v.strip()
+        if not tz_name:
+            raise ValueError("logging.timezone must not be empty")
+        if tz_name.lower() == "local":
+            return "local"
+        try:
+            now_utc = datetime.now(ZoneInfo("UTC"))
+            now_utc.astimezone(ZoneInfo(tz_name))
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(f"logging.timezone must be a valid IANA timezone or 'local': {tz_name}") from exc
+        return tz_name
 
 
 class EngagementRepliesConfig(BaseModel):
