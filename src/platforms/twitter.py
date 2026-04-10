@@ -224,6 +224,7 @@ class TwitterAdapter(PlatformAdapter):
                 max_results=clamped,
                 exclude=["retweets"],
                 tweet_fields=["created_at", "in_reply_to_user_id"],
+                user_auth=True,
             )
         except tweepy.TweepyException as exc:
             logger.warning("Failed to fetch recent posts for history sync: {}", exc)
