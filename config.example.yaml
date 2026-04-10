@@ -100,10 +100,9 @@ content:
       - if a person appears broadly aligned with the configured worldview, avoid cheap negative swipes
       - default to neutral or charitable framing unless there is a clear factual reason to criticize
       - do not praise blindly
-    recent_posts_window: 5
+    recent_posts_window: 10  # how many recent posts to inject into each generation prompt
 
   # Cross-session history: persists the bot's own posts and replies for prompt context
-  history_context_window: 10   # how many recent entries to inject into each generation prompt
   history_path: data/post_history.json
   history_max_entries: 200
   history_sync_on_startup: true  # fetch account's recent posts on startup and merge into local history

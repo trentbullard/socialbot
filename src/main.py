@@ -105,7 +105,7 @@ async def _post_cycle(
     if trending_context:
         logger.info("Injecting trending context ({} chars) for topic: {}", len(trending_context), topic)
 
-    recent = history.get_recent_for_prompt(config.content.history_context_window)
+    recent = history.get_recent_for_prompt(config.content.prompting.recent_posts_window)
     content = generate_post(
         config,
         recent_posts=recent or None,
@@ -193,7 +193,7 @@ def _dry_run(config: BotConfig) -> None:
         config.content.history_path,
         max_entries=config.content.history_max_entries,
     )
-    recent = history.get_recent_for_prompt(config.content.history_context_window)
+    recent = history.get_recent_for_prompt(config.content.prompting.recent_posts_window)
     if recent:
         logger.info("History context: {} entries loaded from {}", len(recent), config.content.history_path)
 

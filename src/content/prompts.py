@@ -38,7 +38,7 @@ def summarize_recent_patterns(config: BotConfig, recent_posts: list[str] | None 
         return ""
 
     window = max(1, config.content.prompting.recent_posts_window)
-    entries = [p.strip() for p in recent_posts[-window:] if p.strip()]
+    entries = [p.strip() for p in reversed(recent_posts[:window]) if p.strip()]
     if not entries:
         return ""
 
@@ -50,7 +50,7 @@ def summarize_recent_patterns(config: BotConfig, recent_posts: list[str] | None 
             label, content = "reply", entry[8:]
         else:
             label, content = "post", entry
-        lines.append(f"  {index}. [{label}] {content}")
+        lines.append(f"  {index}. [{label}] {content.replace(chr(10), ' ').replace(chr(13), '')}")
 
     lines.append(
         "Observe these recent posts and maintain the 'voice' and style, but avoid sounding repetitive or falling back on the same patterns. Do not just rehash the same ideas or formats. Make the new post feel like its from the same person, but fresh and engaging."

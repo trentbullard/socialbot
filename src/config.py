@@ -128,7 +128,6 @@ class ContentConfig(BaseModel):
     guidelines: list[str] = []
     trending: TrendingConfig = TrendingConfig()
     prompting: PromptingConfig = PromptingConfig()
-    history_context_window: int = Field(10, ge=1)
     history_path: str = "data/post_history.json"
     history_max_entries: int = Field(200, ge=1)
     history_sync_on_startup: bool = True
