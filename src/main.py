@@ -20,15 +20,14 @@ from src.content.generator import generate_post, generate_reply, preview_reply_p
 from src.content.giphy import download_gif, extract_gif_tag, search_gif
 from src.content.prompts import pick_topic
 from src.content.trends import fetch_trending_context
+from src.engagement.browsing import BrowsingEngine
+from src.engagement.history import PostHistoryStore, PostRecord
 from src.engagement.replies import ReplyEngagementManager, classify_reply_sentiment
 from src.platforms.base import PlatformAdapter
 from src.scheduler import run_scheduler
 
 AVAILABLE_PLATFORMS = ("twitter",)
 
-# Rolling window of recent posts to avoid repetition
-_recent_posts: list[str] = []
-MAX_RECENT = 20
 DEFAULT_REPLY_DRY_RUN_COMMENTS = [
     "lol this is actually true",
     "based take",
@@ -94,6 +93,7 @@ def _build_adapter(config: BotConfig) -> PlatformAdapter:
 async def _post_cycle(
     config: BotConfig,
     adapter: PlatformAdapter,
+    history: PostHistoryStore,
     reply_manager: ReplyEngagementManager | None = None,
 ) -> None:
     """Single generate-and-post cycle (live mode)."""
@@ -105,9 +105,10 @@ async def _post_cycle(
     if trending_context:
         logger.info("Injecting trending context ({} chars) for topic: {}", len(trending_context), topic)
 
+    recent = history.get_recent_for_prompt(config.content.history_context_window)
     content = generate_post(
         config,
-        recent_posts=_recent_posts,
+        recent_posts=recent or None,
         trending_context=trending_context,
         topic=topic,
     )
@@ -146,14 +147,13 @@ async def _post_cycle(
             except OSError:
                 pass
 
-    _recent_posts.append(content)
-    if len(_recent_posts) > MAX_RECENT:
-        _recent_posts.pop(0)
+    history.add(content, "post", post_id=result.post_id or None)
 
     if result.post_id and reply_manager is not None:
         await reply_manager.register_post(
             result.post_id,
             created_at=datetime.now(timezone.utc),
+            original_post_text=content,
         )
 
 
@@ -188,6 +188,15 @@ def _dry_run(config: BotConfig) -> None:
     logger.info("-" * 60)
     logger.info("Generating sample post...")
 
+    # Load post history for prompt context (read-only in dry-run)
+    history = PostHistoryStore(
+        config.content.history_path,
+        max_entries=config.content.history_max_entries,
+    )
+    recent = history.get_recent_for_prompt(config.content.history_context_window)
+    if recent:
+        logger.info("History context: {} entries loaded from {}", len(recent), config.content.history_path)
+
     # Fetch trending context if enabled (LM-based works without auth)
     topic = pick_topic(config)
     trending_context = asyncio.run(fetch_trending_context(config, topic))
@@ -197,7 +206,7 @@ def _dry_run(config: BotConfig) -> None:
 
     content = generate_post(
         config,
-        recent_posts=_recent_posts,
+        recent_posts=recent or None,
         trending_context=trending_context,
         topic=topic,
     )
@@ -304,6 +313,29 @@ def _dry_run_replies(config: BotConfig, comments: list[str] | None = None) -> No
     logger.info("Reply dry run complete.")
 
 
+async def _sync_history_from_platform(
+    config: BotConfig,
+    adapter: PlatformAdapter,
+    history: PostHistoryStore,
+) -> None:
+    """Fetch the account's recent posts from the platform and merge into local history."""
+    limit = min(config.content.history_max_entries, 100)
+    remote = await adapter.get_recent_posts(limit=limit)
+    if not remote:
+        return
+    remote_records = [
+        PostRecord(
+            timestamp=r.created_at,
+            content=r.content,
+            post_type=r.post_type,
+            post_id=r.post_id,
+        )
+        for r in remote
+    ]
+    n_new = history.sync_from_remote(remote_records)
+    logger.info("Startup sync: {} new post(s) merged from platform history", n_new)
+
+
 async def _post_now(config: BotConfig) -> None:
     """Authenticate and immediately post once, then exit."""
     adapter = _build_adapter(config)
@@ -315,8 +347,14 @@ async def _post_now(config: BotConfig) -> None:
         sys.exit(1)
     logger.info("Authenticated — posting immediately")
 
-    reply_manager = ReplyEngagementManager(config, adapter)
-    await _post_cycle(config, adapter, reply_manager=reply_manager)
+    history = PostHistoryStore(
+        config.content.history_path,
+        max_entries=config.content.history_max_entries,
+    )
+    if config.content.history_sync_on_startup:
+        await _sync_history_from_platform(config, adapter, history)
+    reply_manager = ReplyEngagementManager(config, adapter, history=history)
+    await _post_cycle(config, adapter, history, reply_manager=reply_manager)
     logger.info("Immediate post complete.")
 
 
@@ -331,7 +369,14 @@ async def _run(config: BotConfig, max_posts: int | None) -> None:
         sys.exit(1)
     logger.info("Authenticated successfully with platform: {}", config.platform)
 
-    reply_manager = ReplyEngagementManager(config, adapter)
+    history = PostHistoryStore(
+        config.content.history_path,
+        max_entries=config.content.history_max_entries,
+    )
+    if config.content.history_sync_on_startup:
+        await _sync_history_from_platform(config, adapter, history)
+    reply_manager = ReplyEngagementManager(config, adapter, history=history)
+    browsing_engine = BrowsingEngine(config, adapter)
     shutdown_event = asyncio.Event()
 
     def _signal_handler() -> None:
@@ -347,17 +392,23 @@ async def _run(config: BotConfig, max_posts: int | None) -> None:
             pass
 
     async def callback() -> None:
-        await _post_cycle(config, adapter, reply_manager=reply_manager)
+        await _post_cycle(config, adapter, history, reply_manager=reply_manager)
 
     reply_task: asyncio.Task[None] | None = None
     if reply_manager.enabled:
         reply_task = asyncio.create_task(reply_manager.run_loop(shutdown_event))
+
+    browse_task: asyncio.Task[None] | None = None
+    if browsing_engine.enabled:
+        browse_task = asyncio.create_task(browsing_engine.run_loop(shutdown_event))
 
     logger.info("Starting scheduler loop (max_posts={}) — Ctrl+C to stop gracefully", max_posts or "unlimited")
     await run_scheduler(config, callback, max_posts=max_posts, shutdown_event=shutdown_event)
     shutdown_event.set()
     if reply_task is not None:
         await reply_task
+    if browse_task is not None:
+        await browse_task
     logger.info("Bot stopped.")
 
 

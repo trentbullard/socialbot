@@ -16,6 +16,7 @@ from loguru import logger
 from src.config import BotConfig
 from src.content.prompts import (
     build_generation_prompt,
+    build_intent_classification_prompt,
     build_reply_generation_prompt,
     build_reply_system_prompt,
     build_system_prompt,
@@ -28,6 +29,28 @@ from src.content.prompts import (
 
 MAX_REPLY_WORDS = 8
 MAX_REPLY_CHARS = 48
+
+_REFUSAL_PREFIXES = (
+    "i cannot",
+    "i can't",
+    "i'm unable",
+    "i am unable",
+    "i'm not able",
+    "i am not able",
+    "sorry, i",
+    "as an ai",
+    "i must decline",
+    "i won't",
+    "i will not",
+    "i'd rather not",
+    "i refuse",
+)
+
+
+def _is_refusal(text: str) -> bool:
+    """Return True if the generated text looks like an LLM content refusal."""
+    lowered = text.strip().lower()
+    return any(lowered.startswith(prefix) for prefix in _REFUSAL_PREFIXES)
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +206,10 @@ def _run_codex_prompt(
                 )
                 continue
 
+            if _is_refusal(result.stdout):
+                logger.warning("Codex generated a refusal response (attempt {})", attempt + 1)
+                continue
+
             content = validator(result.stdout)
             if content is None:
                 logger.warning("Codex returned invalid {} content (attempt {})", log_label, attempt + 1)
@@ -244,6 +271,10 @@ def _run_vscode_prompt(
             raw_content = body.get("content", "")
             model_used = body.get("model", "unknown")
             logger.debug("LM proxy responded with model: {}", model_used)
+
+            if _is_refusal(raw_content):
+                logger.warning("LM proxy returned a refusal response (attempt {})", attempt + 1)
+                continue
 
             content = validator(raw_content)
             if content is None:
@@ -395,3 +426,45 @@ def generate_post(
         return _generate_via_vscode_lm(config, recent_posts, trending_context, topic=topic)
     else:
         return _generate_via_codex(config, recent_posts, trending_context, topic=topic)
+
+
+def classify_intent(config: BotConfig, *, comment_text: str, original_post: str = "") -> str:
+    """Classify whether a reply is a pitch/proposal or normal engagement.
+
+    Returns 'pitch' or 'normal'. Fails open — returns 'normal' on any error.
+    """
+    system_prompt = "you are a social media reply filter agent. Respond with exactly one word: 'pitch' or 'normal'. No explanation."
+    user_prompt = build_intent_classification_prompt(comment_text, original_post=original_post)
+    timeout = config.engagement.replies.intent_classification_timeout_seconds
+
+    def _intent_validator(text: str) -> str | None:
+        normalized = text.strip().lower().strip("\"'.,!? ")
+        if "pitch" in normalized:
+            return "pitch"
+        if "normal" in normalized:
+            return "normal"
+        return None
+
+    if config.generator_backend == "vscode-lm":
+        result = _run_vscode_prompt(
+            config,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            timeout_seconds=timeout,
+            log_label="intent-check",
+            validator=_intent_validator,
+        )
+    else:
+        result = _run_codex_prompt(
+            config,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            timeout_seconds=timeout,
+            log_label="intent-check",
+            validator=_intent_validator,
+        )
+
+    if result is None:
+        logger.debug("Intent classification failed or timed out — defaulting to 'normal'")
+        return "normal"
+    return result

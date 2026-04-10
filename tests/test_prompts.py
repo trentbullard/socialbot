@@ -5,6 +5,7 @@ from __future__ import annotations
 from src.config import BotConfig
 from src.content.prompts import (
     build_generation_prompt,
+    build_intent_classification_prompt,
     build_system_prompt,
     summarize_recent_patterns,
 )
@@ -120,9 +121,9 @@ def test_recent_pattern_summary_returns_recent_post_context() -> None:
         "honestly the real issue is branding, vibes, and fake urgency",
     ]
     summary = summarize_recent_patterns(config, recent)
-    assert "Your last 4 posts" in summary
+    assert "Your 4 most recent posts and replies" in summary
     assert "ai is like netflix for bosses #future" in summary
-    assert "Avoid posting in a way that feels repetitive" in summary
+    assert "Vary your setup, framing" in summary
 
 
 def test_generation_prompt_includes_recent_post_context_and_discouraged_patterns() -> None:
@@ -142,6 +143,33 @@ def test_generation_prompt_includes_recent_post_context_and_discouraged_patterns
         "ai is like uber for powerpoint #innovation",
     ]
     prompt = build_generation_prompt(config, recent_posts=recent, topic="AI")
-    assert "Your last 2 posts" in prompt
-    assert "Avoid posting in a way that feels repetitive" in prompt
+    assert "Your 2 most recent posts and replies" in prompt
+    assert "Vary your setup, framing" in prompt
     assert "forced pop-culture analogy" in prompt
+
+
+def test_intent_classification_prompt_includes_original_post() -> None:
+    prompt = build_intent_classification_prompt(
+        "let's collab on something",
+        original_post="hot take: AI is just autocomplete with a PR team",
+    )
+    assert "hot take: AI is just autocomplete with a PR team" in prompt
+    assert "let's collab on something" in prompt
+    assert "pitch" in prompt
+    assert "normal" in prompt
+
+
+def test_intent_classification_prompt_uses_placeholder_when_original_missing() -> None:
+    prompt = build_intent_classification_prompt("interesting point")
+    assert "(not available)" in prompt
+    assert "interesting point" in prompt
+
+
+def test_intent_classification_prompt_uses_placeholder_when_original_empty() -> None:
+    prompt = build_intent_classification_prompt("interesting point", original_post="")
+    assert "(not available)" in prompt
+
+
+def test_intent_classification_prompt_uses_placeholder_when_original_whitespace() -> None:
+    prompt = build_intent_classification_prompt("interesting point", original_post="   ")
+    assert "(not available)" in prompt

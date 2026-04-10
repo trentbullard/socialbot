@@ -5,11 +5,54 @@ from __future__ import annotations
 import asyncio
 import random
 from collections.abc import Callable, Coroutine
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from loguru import logger
 
 from src.config import BotConfig
+
+
+def _get_scheduler_tz(config: BotConfig):
+    tz_name = config.logging.timezone
+    if tz_name == "local":
+        return datetime.now().astimezone().tzinfo
+    return ZoneInfo(tz_name)
+
+
+def _adjust_for_active_hours(config: BotConfig, interval: float) -> float:
+    """If the computed fire time falls outside active hours, advance to next window."""
+    start = config.posting.active_hours_start
+    end = config.posting.active_hours_end
+    if start == 0 and end == 24:
+        return interval
+
+    tz = _get_scheduler_tz(config)
+    now = datetime.now(tz)
+    fire_dt = now + timedelta(seconds=interval)
+    fire_hour = fire_dt.hour + fire_dt.minute / 60.0
+
+    if start <= fire_hour < end:
+        return interval  # Already within active window
+
+    # Advance to the next window start
+    candidate = fire_dt.replace(hour=start, minute=0, second=0, microsecond=0)
+    if candidate <= fire_dt:
+        candidate += timedelta(days=1)
+
+    # Random offset so posts don't cluster at window open
+    offset = random.uniform(0, 45 * 60)
+    adjusted = (candidate - now).total_seconds() + offset
+    logger.debug(
+        "Active hours {}-{}: rescheduling fire from {:%H:%M} → {:%H:%M} (+{:.0f}s offset)",
+        start,
+        end,
+        fire_dt,
+        candidate + timedelta(seconds=offset),
+        offset,
+    )
+    return adjusted
 
 
 def _next_interval(config: BotConfig) -> float:
@@ -22,7 +65,7 @@ def _next_interval(config: BotConfig) -> float:
         config.posting.jitter_seconds_min,
         config.posting.jitter_seconds_max,
     )
-    return base + jitter
+    return _adjust_for_active_hours(config, base + jitter)
 
 
 def _format_interval(seconds: float) -> str:

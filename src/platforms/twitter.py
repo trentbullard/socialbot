@@ -8,7 +8,7 @@ import tweepy
 import tweepy.asynchronous
 from loguru import logger
 
-from src.platforms.base import PlatformAdapter, PostResult, ReplyCandidate, TrendingPost
+from src.platforms.base import PlatformAdapter, PostResult, ReplyCandidate, RemotePost, TrendingPost
 
 
 class TwitterAdapter(PlatformAdapter):
@@ -117,6 +117,7 @@ class TwitterAdapter(PlatformAdapter):
 
                 results.append(TrendingPost(
                     text=tweet.text,
+                    post_id=str(tweet.id),
                     author=tweet.author_id or "",
                     engagement=engagement,
                     hashtags=hashtags,
@@ -129,6 +130,19 @@ class TwitterAdapter(PlatformAdapter):
         except tweepy.TweepyException as exc:
             logger.warning("Twitter search failed: {}", exc)
             return []
+
+    async def like_post(self, post_id: str) -> bool:
+        """Like a tweet by ID using the authenticated user's account."""
+        if self._client is None or not self._user_id:
+            logger.warning("Cannot like tweet — not authenticated")
+            return False
+        try:
+            self._client.like(self._user_id, post_id)
+            logger.debug("Liked tweet {}", post_id)
+            return True
+        except tweepy.TweepyException as exc:
+            logger.warning("Failed to like tweet {}: {}", post_id, exc)
+            return False
 
     async def list_direct_replies(
         self,
@@ -151,6 +165,7 @@ class TwitterAdapter(PlatformAdapter):
                     "conversation_id",
                     "created_at",
                     "referenced_tweets",
+                    "attachments",
                 ],
                 user_fields=["username"],
                 user_auth=True,
@@ -180,6 +195,7 @@ class TwitterAdapter(PlatformAdapter):
                 created_at = created_at.replace(tzinfo=timezone.utc)
 
             author_id = str(getattr(tweet, "author_id", "") or "")
+            attachments = getattr(tweet, "attachments", None) or {}
             results.append(ReplyCandidate(
                 reply_id=str(tweet.id),
                 parent_post_id=post_id,
@@ -187,12 +203,50 @@ class TwitterAdapter(PlatformAdapter):
                 author_handle=user_map.get(author_id, ""),
                 text=getattr(tweet, "text", "") or "",
                 created_at=created_at,
+                has_media=bool(attachments),
             ))
 
         return results
 
     def get_authenticated_user_id(self) -> str:
         return self._user_id
+
+    async def get_recent_posts(self, limit: int = 100) -> list[RemotePost]:
+        """Fetch the account's most recent posts and replies for startup history sync."""
+        if self._client is None or not self._user_id:
+            logger.warning("Cannot fetch recent posts — not authenticated")
+            return []
+
+        try:
+            clamped = max(5, min(limit, 100))
+            response = self._client.get_users_tweets(
+                id=self._user_id,
+                max_results=clamped,
+                exclude=["retweets"],
+                tweet_fields=["created_at", "in_reply_to_user_id"],
+            )
+        except tweepy.TweepyException as exc:
+            logger.warning("Failed to fetch recent posts for history sync: {}", exc)
+            return []
+
+        if not response.data:
+            return []
+
+        results: list[RemotePost] = []
+        for tweet in response.data:
+            created_at = getattr(tweet, "created_at", None) or datetime.now(timezone.utc)
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            post_type: str = "reply" if getattr(tweet, "in_reply_to_user_id", None) else "post"
+            results.append(RemotePost(
+                post_id=str(tweet.id),
+                content=getattr(tweet, "text", "") or "",
+                post_type=post_type,  # type: ignore[arg-type]
+                created_at=created_at,
+            ))
+
+        logger.info("Fetched {} recent post(s) from platform for history sync", len(results))
+        return results
 
     @staticmethod
     def _extract_replied_to_parent_id(tweet: object) -> str:

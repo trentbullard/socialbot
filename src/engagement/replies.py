@@ -11,7 +11,8 @@ from datetime import datetime, timedelta, timezone
 from loguru import logger
 
 from src.config import BotConfig, EngagementRepliesConfig
-from src.content.generator import generate_reply
+from src.content.generator import classify_intent, generate_reply
+from src.engagement.history import PostHistoryStore
 from src.engagement.state import EngagementStateStore, WatchedPostState
 from src.platforms.base import PlatformAdapter, ReplyCandidate
 
@@ -83,6 +84,7 @@ class ReplyEngagementManager:
         config: BotConfig,
         adapter: PlatformAdapter,
         *,
+        history: PostHistoryStore | None = None,
         dry_run: bool = False,
         rng: random.Random | None = None,
         sleep_func: Callable[[float], Awaitable[None]] | None = None,
@@ -90,6 +92,7 @@ class ReplyEngagementManager:
         self.config = config
         self.settings: EngagementRepliesConfig = config.engagement.replies
         self.adapter = adapter
+        self._history = history
         self.dry_run = dry_run
         self.store = EngagementStateStore(config.engagement.state_path)
         self._rng = rng or random.Random()
@@ -100,7 +103,7 @@ class ReplyEngagementManager:
     def enabled(self) -> bool:
         return self.settings.enabled
 
-    async def register_post(self, post_id: str, *, created_at: datetime | None = None) -> None:
+    async def register_post(self, post_id: str, *, created_at: datetime | None = None, original_post_text: str = "") -> None:
         if not self.enabled:
             return
 
@@ -117,6 +120,7 @@ class ReplyEngagementManager:
                 created_at=posted_at,
                 expires_at=expires_at,
                 target_reply_count=target,
+                original_post_text=original_post_text,
             )
 
         logger.info(
@@ -238,12 +242,48 @@ class ReplyEngagementManager:
                 continue
 
             emoji = self._choose_emoji(sentiment)
-            reply_text = generate_reply(
-                self.config,
-                comment_text=candidate.text,
-                sentiment=sentiment,
-                emoji=emoji,
-            )
+
+            # Media-only reply (gif/image with no text): respond with a single emoji
+            if candidate.has_media and not candidate.text.strip():
+                fallback_emoji = emoji or self._rng.choice(
+                    self.settings.positive_emojis + self.settings.negative_emojis
+                )
+                reply_text: str | None = fallback_emoji
+                logger.debug(
+                    "Media-only reply {} on {}: responding with emoji {}",
+                    candidate.reply_id,
+                    current_state.post_id,
+                    fallback_emoji,
+                )
+            else:
+                # Intent gate: skip pitches and collaboration solicitations
+                if self.settings.intent_classification_enabled:
+                    intent = classify_intent(
+                        self.config,
+                        comment_text=candidate.text,
+                        original_post=current_state.original_post_text,
+                    )
+                    if "pitch" in intent or "proposal" in intent:
+                        logger.info(
+                            "Skipping reply {} on {}: classified as pitch/proposal",
+                            candidate.reply_id,
+                            current_state.post_id,
+                        )
+                        async with self._lock:
+                            self.store.mark_processed(
+                                current_state.post_id,
+                                candidate.reply_id,
+                                newest_reply_id=newest_reply_id,
+                            )
+                        continue
+
+                reply_text = generate_reply(
+                    self.config,
+                    comment_text=candidate.text,
+                    sentiment=sentiment,
+                    emoji=emoji,
+                )
+
             if reply_text is None:
                 logger.warning(
                     "Generated invalid reply for {} on {}",
@@ -291,6 +331,8 @@ class ReplyEngagementManager:
                     current_state.post_id,
                     result.post_id,
                 )
+                if self._history is not None:
+                    self._history.add(reply_text, "reply", post_id=result.post_id or None)
                 async with self._lock:
                     self.store.mark_replied(
                         current_state.post_id,
@@ -314,18 +356,29 @@ class ReplyEngagementManager:
 
     def _skip_reason(self, watched_post: WatchedPostState, candidate: ReplyCandidate) -> str:
         text = candidate.text.strip()
-        if not text:
+        if not text and not candidate.has_media:
             return "empty"
         if candidate.created_at > watched_post.expires_at:
             return "expired"
         if self.settings.skip_if_author_is_self and candidate.author_id == self.adapter.get_authenticated_user_id():
             return "self"
-        if self.settings.skip_if_contains_links and _contains_link(text):
+        if text and self.settings.skip_if_contains_links and _contains_link(text):
             return "link"
         if watched_post.replied_author_counts.get(candidate.author_id, 0) >= self.settings.max_replies_per_user_per_post:
             return "author-limit"
-        if looks_like_spam(text):
+        if text and looks_like_spam(text):
             return "spam"
+
+        # Skip replies that arrived implausibly fast (likely automated)
+        elapsed = (candidate.created_at - watched_post.created_at).total_seconds()
+        if elapsed < self.settings.min_inbound_response_seconds:
+            return "too-fast"
+
+        # Probabilistic skip for handles that look auto-generated (letters + 6+ digits)
+        handle = candidate.author_handle.lstrip("@").lower()
+        if handle and re.match(r'^[a-z]+\d{6,}$', handle) and self._rng.random() < 0.70:
+            return "generated-handle"
+
         return ""
 
     def _choose_emoji(self, sentiment: str) -> str | None:

@@ -30,20 +30,30 @@ def _format_bullets(items: list[str], *, fallback: str) -> str:
 
 
 def summarize_recent_patterns(config: BotConfig, recent_posts: list[str] | None = None) -> str:
-    """Return recent-post context to discourage repetitive generations."""
+    """Return recent activity context to discourage repetitive generations.
+
+    Accepts plain strings or labeled entries prefixed with '[post]' or '[reply]'.
+    """
     if not recent_posts:
         return ""
 
-    window = max(1, min(config.content.prompting.recent_posts_window, 5))
-    posts = [post.strip() for post in recent_posts[-window:] if post.strip()]
-    if not posts:
+    window = max(1, config.content.prompting.recent_posts_window)
+    entries = [p.strip() for p in recent_posts[-window:] if p.strip()]
+    if not entries:
         return ""
 
-    lines = [f"Your last {len(posts)} posts:"]
-    lines.extend(f"  {index}. {post}" for index, post in enumerate(posts, start=1))
+    lines = [f"Your {len(entries)} most recent posts and replies (newest last):"]
+    for index, entry in enumerate(entries, start=1):
+        if entry.startswith("[post] "):
+            label, content = "post", entry[7:]
+        elif entry.startswith("[reply] "):
+            label, content = "reply", entry[8:]
+        else:
+            label, content = "post", entry
+        lines.append(f"  {index}. [{label}] {content}")
+
     lines.append(
-        "Avoid posting in a way that feels repetitive when compared to these posts. "
-        "Do not reuse the same setup, cadence, framing, or punchline."
+        "Observe these recent posts and maintain the 'voice' and style, but avoid sounding repetitive or falling back on the same patterns. Do not just rehash the same ideas or formats. Make the new post feel like its from the same person, but fresh and engaging."
     )
     return "\n".join(lines)
 
@@ -217,3 +227,17 @@ def should_include_gif(config: BotConfig) -> bool:
 def pick_topic(config: BotConfig) -> str:
     """Pick a random topic from the configured pool."""
     return random.choice(config.content.topics) if config.content.topics else "current events"
+
+
+def build_intent_classification_prompt(comment_text: str, original_post: str = "") -> str:
+    """Build a prompt for classifying whether a reply is a pitch or normal engagement."""
+    original_post_display = original_post.strip() if original_post.strip() else "(not available)"
+    return (
+        "based on the following:\n\n"
+        f"this is a post from our social media manager: {original_post_display}\n\n"
+        f"this is a reply to that post: {comment_text}\n\n"
+        "if the reply sounds like a proposal, pitch, or offer to collaborate or other interact with "
+        "another account then respond with 'pitch'\n\n"
+        "if the reply sounds like a reasonably normal human response (ignore tone or offense or "
+        "aggression, etc, we just want to ignore bots) to the original post then respond with 'normal'"
+    )

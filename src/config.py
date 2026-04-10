@@ -24,6 +24,8 @@ class PostingConfig(BaseModel):
     posts_per_day_max: int = 10
     jitter_seconds_min: int = 5
     jitter_seconds_max: int = 45
+    active_hours_start: int = Field(7, ge=0, le=23)
+    active_hours_end: int = Field(23, ge=1, le=24)
 
     @field_validator("max_interval_minutes")
     @classmethod
@@ -32,6 +34,12 @@ class PostingConfig(BaseModel):
         if v < min_val:
             raise ValueError("max_interval_minutes must be >= min_interval_minutes")
         return v
+
+    @model_validator(mode="after")
+    def validate_active_hours(self) -> "PostingConfig":
+        if self.active_hours_end <= self.active_hours_start:
+            raise ValueError("posting.active_hours_end must be > active_hours_start")
+        return self
 
 
 class StyleConfig(BaseModel):
@@ -120,6 +128,10 @@ class ContentConfig(BaseModel):
     guidelines: list[str] = []
     trending: TrendingConfig = TrendingConfig()
     prompting: PromptingConfig = PromptingConfig()
+    history_context_window: int = Field(10, ge=1)
+    history_path: str = "data/post_history.json"
+    history_max_entries: int = Field(200, ge=1)
+    history_sync_on_startup: bool = True
 
 
 class CodexConfig(BaseModel):
@@ -207,8 +219,8 @@ class EngagementRepliesConfig(BaseModel):
     window_minutes: int = Field(120, ge=1)
     poll_interval_seconds_min: int = Field(30, ge=1)
     poll_interval_seconds_max: int = Field(90, ge=1)
-    reply_delay_seconds_min: int = Field(8, ge=0)
-    reply_delay_seconds_max: int = Field(40, ge=0)
+    reply_delay_seconds_min: int = Field(60, ge=0)
+    reply_delay_seconds_max: int = Field(360, ge=0)
     allow_neutral_as_positive: bool = True
     max_replies_per_user_per_post: int = Field(1, ge=1)
     positive_emojis: list[str] = Field(default_factory=lambda: ["😅", "🤣"])
@@ -217,6 +229,9 @@ class EngagementRepliesConfig(BaseModel):
     negative_emoji_probability: float = Field(0.5, ge=0.0, le=1.0)
     skip_if_contains_links: bool = True
     skip_if_author_is_self: bool = True
+    min_inbound_response_seconds: int = Field(15, ge=0)
+    intent_classification_enabled: bool = True
+    intent_classification_timeout_seconds: int = Field(15, ge=1)
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "EngagementRepliesConfig":
@@ -237,9 +252,27 @@ class EngagementRepliesConfig(BaseModel):
         return self
 
 
+class BrowsingConfig(BaseModel):
+    enabled: bool = False
+    interval_minutes_min: int = Field(25, ge=1)
+    interval_minutes_max: int = Field(75, ge=1)
+    likes_per_pass_min: int = Field(1, ge=1)
+    likes_per_pass_max: int = Field(4, ge=1)
+    like_probability: float = Field(0.35, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "BrowsingConfig":
+        if self.interval_minutes_max < self.interval_minutes_min:
+            raise ValueError("engagement.browsing.interval_minutes_max must be >= interval_minutes_min")
+        if self.likes_per_pass_max < self.likes_per_pass_min:
+            raise ValueError("engagement.browsing.likes_per_pass_max must be >= likes_per_pass_min")
+        return self
+
+
 class EngagementConfig(BaseModel):
     state_path: str = ".bot_state/engagement_state.json"
     replies: EngagementRepliesConfig = EngagementRepliesConfig()
+    browsing: BrowsingConfig = BrowsingConfig()
 
     @field_validator("state_path")
     @classmethod

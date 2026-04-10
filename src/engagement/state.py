@@ -18,6 +18,7 @@ class WatchedPostState:
     target_reply_count: int
     replied_count: int = 0
     last_seen_reply_id: str = ""
+    original_post_text: str = ""
     processed_reply_ids: set[str] = field(default_factory=set)
     replied_author_counts: dict[str, int] = field(default_factory=dict)
 
@@ -36,6 +37,7 @@ class WatchedPostState:
             "target_reply_count": self.target_reply_count,
             "replied_count": self.replied_count,
             "last_seen_reply_id": self.last_seen_reply_id,
+            "original_post_text": self.original_post_text,
             "processed_reply_ids": sorted(self.processed_reply_ids),
             "replied_author_counts": self.replied_author_counts,
         }
@@ -49,6 +51,7 @@ class WatchedPostState:
             target_reply_count=int(payload["target_reply_count"]),
             replied_count=int(payload.get("replied_count", 0)),
             last_seen_reply_id=str(payload.get("last_seen_reply_id", "") or ""),
+            original_post_text=str(payload.get("original_post_text", "") or ""),
             processed_reply_ids=set(payload.get("processed_reply_ids", [])),
             replied_author_counts={
                 str(author_id): int(count)
@@ -96,6 +99,7 @@ class EngagementStateStore:
         created_at: datetime,
         expires_at: datetime,
         target_reply_count: int,
+        original_post_text: str = "",
     ) -> WatchedPostState:
         state = self.active_posts.get(post_id)
         if state is None:
@@ -104,6 +108,7 @@ class EngagementStateStore:
                 created_at=created_at,
                 expires_at=expires_at,
                 target_reply_count=target_reply_count,
+                original_post_text=original_post_text,
             )
             self.active_posts[post_id] = state
             self.save()

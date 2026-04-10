@@ -19,6 +19,9 @@ posting:
   # Additional random jitter in seconds added before each post (human-like delay)
   jitter_seconds_min: 5
   jitter_seconds_max: 45
+  # Only fire posts during these hours (24h clock, in the logging.timezone)
+  active_hours_start: 7
+  active_hours_end: 23
 
 content:
   tone:
@@ -99,6 +102,12 @@ content:
       - do not praise blindly
     recent_posts_window: 5
 
+  # Cross-session history: persists the bot's own posts and replies for prompt context
+  history_context_window: 10   # how many recent entries to inject into each generation prompt
+  history_path: data/post_history.json
+  history_max_entries: 200
+  history_sync_on_startup: true  # fetch account's recent posts on startup and merge into local history
+
 # Which backend to use for content generation: "codex" or "vscode-lm"
 # - codex:     calls the Codex CLI (requires OpenAI API key)
 # - vscode-lm: calls the local VS Code LM proxy extension (uses Copilot subscription)
@@ -152,8 +161,8 @@ engagement:
     window_minutes: 120
     poll_interval_seconds_min: 30
     poll_interval_seconds_max: 90
-    reply_delay_seconds_min: 8
-    reply_delay_seconds_max: 40
+    reply_delay_seconds_min: 60
+    reply_delay_seconds_max: 360
     allow_neutral_as_positive: true
     max_replies_per_user_per_post: 1
     positive_emojis: ["😅", "🤣"]
@@ -162,6 +171,19 @@ engagement:
     negative_emoji_probability: 0.5
     skip_if_contains_links: true
     skip_if_author_is_self: true
+    # Skip replies that arrived implausibly quickly after the original post
+    min_inbound_response_seconds: 15
+    # Classify replies before responding to filter out pitches and solicitations
+    intent_classification_enabled: true
+    intent_classification_timeout_seconds: 15
+  browsing:
+    # Passive like activity between posts — creates organic inter-post engagement
+    enabled: false
+    interval_minutes_min: 25
+    interval_minutes_max: 75
+    likes_per_pass_min: 1
+    likes_per_pass_max: 4
+    like_probability: 0.35
 
 platform: twitter
 

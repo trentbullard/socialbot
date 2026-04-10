@@ -289,3 +289,90 @@ def test_twitter_adapter_posts_replies_with_parent_id() -> None:
 
     assert result.success is True
     assert adapter._client.create_tweet.call_args.kwargs["in_reply_to_tweet_id"] == "123"
+
+
+# ---------------------------------------------------------------------------
+# PostHistoryStore.sync_from_remote tests
+# ---------------------------------------------------------------------------
+
+def _make_history_store(tmp_path, max_entries: int = 20):
+    from src.engagement.history import PostHistoryStore
+    return PostHistoryStore(tmp_path / "history.json", max_entries=max_entries)
+
+
+def _make_record(content: str, post_type: str = "post", post_id: str | None = None, offset_seconds: int = 0):
+    from src.engagement.history import PostRecord
+    ts = datetime(2026, 4, 10, 12, 0, offset_seconds, tzinfo=timezone.utc)
+    return PostRecord(timestamp=ts, content=content, post_type=post_type, post_id=post_id)  # type: ignore[arg-type]
+
+
+def test_sync_deduplicates_by_post_id(tmp_path) -> None:
+    store = _make_history_store(tmp_path)
+    # Pre-populate with a record that has a known post_id
+    store.add("original post", post_type="post", post_id="tweet-1")
+
+    # Remote returns the same tweet by post_id with slightly different content
+    remote = [_make_record("original post text (fetched)", post_id="tweet-1")]
+    added = store.sync_from_remote(remote)
+
+    assert added == 0
+    assert len(store.get_recent(10)) == 1
+
+
+def test_sync_deduplicates_by_content_fallback(tmp_path) -> None:
+    store = _make_history_store(tmp_path)
+    # Pre-populate without a post_id (legacy record)
+    store.add("same content here", post_type="post")
+
+    # Remote has no post_id but exact same content
+    remote = [_make_record("same content here", post_id=None)]
+    added = store.sync_from_remote(remote)
+
+    assert added == 0
+    assert len(store.get_recent(10)) == 1
+
+
+def test_sync_adds_new_records_sorted_newest_first(tmp_path) -> None:
+    store = _make_history_store(tmp_path)
+    store.add("existing post", post_type="post", post_id="tweet-0")
+
+    # Two genuinely new remote records with different timestamps
+    remote = [
+        _make_record("older manual post", post_id="tweet-old", offset_seconds=5),
+        _make_record("newer manual post", post_id="tweet-new", offset_seconds=30),
+    ]
+    added = store.sync_from_remote(remote)
+
+    assert added == 2
+    records = store.get_recent(10)
+    # Newest timestamp first
+    assert records[0].timestamp >= records[1].timestamp
+    contents = [r.content for r in records]
+    assert "newer manual post" in contents
+    assert "older manual post" in contents
+
+
+def test_sync_trims_to_max_entries(tmp_path) -> None:
+    store = _make_history_store(tmp_path, max_entries=3)
+    for i in range(2):
+        store.add(f"existing {i}", post_type="post", post_id=f"local-{i}")
+
+    # Remote has 5 new records — combined would be 7, must trim to 3
+    remote = [_make_record(f"remote {i}", post_id=f"tweet-{i}", offset_seconds=i) for i in range(5)]
+    store.sync_from_remote(remote)
+
+    assert len(store.get_recent(100)) == 3
+
+
+def test_sync_returns_count_of_new_records(tmp_path) -> None:
+    store = _make_history_store(tmp_path)
+    store.add("already here", post_type="post", post_id="existing-1")
+
+    remote = [
+        _make_record("already here", post_id="existing-1"),   # duplicate by id
+        _make_record("brand new one", post_id="tweet-2"),       # new
+        _make_record("another new one", post_id="tweet-3"),     # new
+    ]
+    added = store.sync_from_remote(remote)
+
+    assert added == 2
